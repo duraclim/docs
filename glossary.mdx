@@ -1,0 +1,130 @@
+---
+title: Glossary
+description: Common terms and abbreviations used at Duraclim IT
+icon: book-open
+---
+
+# Glossary
+
+This document outlines a list of our commonly used terms and abbreviations.
+
+<Note>
+  New terms are added regularly. If you encounter a term that's not listed here, please add it!
+</Note>
+
+## General Terms
+
+### API
+Stands for _Application Programming Interface_. It's a structured way for different software applications to communicate with each other. It defines a set of rules and protocols that one program can follow to request and exchange data or functionality from another program.
+
+We generally use APIs to extend Zapier and Pabbly's functionality into applications they don't support natively, such as Agendrix, Square, etc.
+
+> _Note: Zapier is actually nothing more than a friendly visual builder that sends API requests in the background, without requiring the user to have knowledge of how APIs work._
+
+### Access Token
+
+An access token is a type of credential used by APIs in order to allow fetching or manipulation of resources within the API's software. Access Tokens are usually acquired through an OAuth 2.0 authentication flow.
+
+### Asana
+
+[Asana](https://app.asana.com) is our collaborative platform (equivalent to Atlassian's Jira) used to assign tasks within the team and keep track of projects' progress and due dates.
+
+### CRM
+Stands for _Customer Relationship Management_. It's the software that allows us to track a lead's progress through the customer journey, as well as maintain our relationship with existing customers. Our current CRM (as of 29.12.2024) is [Pipedrive](https://www.pipedrive.com/).
+
+### FSM
+Stands for _Field Service Management_. It's the software we use to dispatch our field technicians and assign them onto cleaning/inspection/installation jobs for customers that book our service. It is the natural extension of our CRM software. Our current FSM (as of 29.12.2024) is [Jobber](https://www.getjobber.com/).
+
+### Refresh Token
+
+A refresh token is a type of credential used to acquire a new access token after the previous one expires. It is usually acquired through the same OAuth 2.0 authentication flow that provides the access token.
+
+### Shared Drive
+
+The **L3 — IT Shared Drive** is a shared Google Drive folder where we safeguard and share all important resources relevant to our operations. You can find it under the Shared Drives tab on the left of your Google Drive interface. If you don't see it, kindly contact your immediate supervisor. Access is granted on a per-need basis.
+
+### Task
+
+A task is one step within an automation. Zapier and Pabbly's billing model is based on task consumption, which is why we focus on task efficiency when conceiving an automation.
+
+## Business Terms
+
+### Casa
+
+Casa refers to the residential side of our cleaning services, specifically homeowners who request the service individually.
+
+### Condo
+
+Condo refers to the condominium side of our cleaning services, where we propose a group offer for the entirety of a building's residents. These services are mainly submitted through the condominium's syndicate or management company.
+
+### Dispatch
+
+Dispatch is the team in charge of scheduling jobs in the most efficient, optimized routes and order for our field technicians. They are also in charge of rescheduling cancelled jobs and booking second-visits, such as in the case of incomplete jobs.
+
+## Tools and Services
+
+### DC
+
+DC (short for DuraClim) is a slack bot used by Duraclim's IT to automate messages, notifications, and alerts. We are also in the process of giving it chatbot capabilities in order to serve as a first point of reference for any employee requiring information or assistance.
+
+### Jobber
+
+Jobber is our FSM software. Refer to FSM in the glossary for further details.
+
+### Jotform
+
+[Jotform](https://www.jotform.com/) is a software we use to create forms for internal company usage. In the context of IT operations, Jotforms (the term we use for forms created on the platform) are usually used to trigger a Zap or a Pab upon reception of a new submission.
+
+### Miro
+
+[Miro](https://miro.com/) is the software we use to create brainstorming boards for our operations, as well as documentations. We also use the term to refer to a board within the software _(E.g. "Creating a Miro")_
+
+### Pabbly
+
+Pabbly is an automation platform we use to build no-code integrations between multiple apps. It is equivalent to Zapier but slightly cheaper in terms of its pricing per task. We typically use it for high-volume automations.
+
+### Pab
+
+A Pab is a term that refers to an automation built on the Pabbly platform. It is made of a trigger and subsequent actions.
+
+### Pipedrive
+
+Pipedrive is our CRM software. Refer to CRM in the glossary for further details.
+
+### Zap
+
+A Zap is a term that refers to an automation built on the Zapier platform. It is made of a trigger and subsequent actions.
+
+### Zapier
+
+Zapier is an automation platform we use to build no-code integrations between applications. It is equivalent to Pabbly but slightly more user-friendly, reliable and easier to troubleshoot. It's slightly more expensive however, which is why we tend to use it for less volume-heavy automations, as well as automations which require a higher degree of reliability.
+
+## Technical Terms
+
+### React
+
+A JavaScript library for building user interfaces. It's component-based, declarative, and efficient. We use React extensively in our Next.js applications.
+
+### Next.js
+
+A React framework that provides server-side rendering, static site generation, API routes, and other features to help build modern web applications. Our calculator and dashboard applications are built with Next.js.
+
+### Go (Golang)
+
+A statically typed, compiled programming language designed at Google. It's known for its simplicity, efficiency, and strong support for concurrency. We use Go for our backend services, like the reschedule client.
+
+### Supabase
+
+An open-source Firebase alternative providing a PostgreSQL database, authentication, instant APIs, real-time subscriptions, and storage. We use Supabase for our database and authentication needs.
+
+### TypeScript
+
+A superset of JavaScript that adds static types. It helps catch errors during development through type checking. We use TypeScript in all our frontend projects.
+
+### PostgreSQL
+
+A powerful, open-source object-relational database system. We use PostgreSQL as our primary database, managed through Supabase.
+
+### Docker
+
+A platform for developing, shipping, and running applications in containers. We use Docker for consistent development environments and deployment.

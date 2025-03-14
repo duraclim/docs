@@ -1,0 +1,971 @@
+---
+title: Automation Examples
+description: Real-world examples of automations built for Duraclim using Zapier and Pabbly
+icon: lightbulb
+---
+
+# Automation Examples
+
+This document provides detailed examples of automation workflows we've implemented at Duraclim. These examples serve as references and starting points for creating your own automations.
+
+<Frame>
+  <img src="/images/automation-examples-overview.png" alt="Automation Examples Overview" className="rounded-lg" />
+</Frame>
+
+## Lead Management Automations
+
+### New Lead Notification
+
+**Platform:** Zapier  
+**Purpose:** Notify sales team of new leads from website form submissions
+
+<Steps>
+  <Step title="Trigger: New Jotform Submission">
+    Monitors our lead capture form for new submissions.
+  </Step>
+  
+  <Step title="Filter: Valid Lead">
+    Checks if the submission contains valid contact information.
+    ```
+    Email exists AND Phone exists AND Service Type is not empty
+    ```
+  </Step>
+  
+  <Step title="Format Data">
+    Standardizes the lead data format:
+    - Formats phone number to E.164 format
+    - Capitalizes name properly
+    - Cleans up address information
+  </Step>
+  
+  <Step title="Create Lead in Pipedrive">
+    Creates a new person and deal in Pipedrive CRM:
+    ```
+    Person:
+      - Name: {{formattedName}}
+      - Email: {{email}}
+      - Phone: {{formattedPhone}}
+      - Address: {{formattedAddress}}
+      
+    Deal:
+      - Title: {{serviceType}} - {{formattedName}}
+      - Pipeline: Sales Pipeline
+      - Stage: Lead In
+      - Value: {{estimatedValue}}
+    ```
+  </Step>
+  
+  <Step title="Send Slack Notification">
+    Notifies the sales team in the #sales-leads channel:
+    ```
+    *New Lead Received!*
+    *Name:* {{formattedName}}
+    *Service:* {{serviceType}}
+    *Location:* {{city}}
+    *Value:* ${{estimatedValue}}
+    
+    <{{pipedriveUrl}}|View in Pipedrive>
+    ```
+  </Step>
+  
+  <Step title="Add to Follow-up List">
+    Adds the lead to a Google Sheet for follow-up tracking.
+  </Step>
+</Steps>
+
+<Frame>
+  <img src="/images/lead-notification-zap.png" alt="Lead Notification Zap" className="rounded-lg" />
+</Frame>
+
+### Lead Scoring Automation
+
+**Platform:** Zapier  
+**Purpose:** Automatically score leads based on behavior and attributes
+
+<Steps>
+  <Step title="Trigger: Updated Deal in Pipedrive">
+    Monitors for updates to deals in Pipedrive.
+  </Step>
+  
+  <Step title="Filter: Only New or Updated Leads">
+    Only processes deals that are new or have updated information.
+    ```
+    Stage is "Lead In" OR Custom Field "Score" is empty
+    ```
+  </Step>
+  
+  <Step title="Calculate Lead Score">
+    Uses a Code step to calculate lead score based on multiple factors:
+    ```javascript
+    // Sample lead scoring algorithm
+    let score = 0;
+    
+    // Service type scoring
+    const serviceType = inputData.service_type || '';
+    if (serviceType.includes('Commercial')) score += 30;
+    else if (serviceType.includes('Condo')) score += 25;
+    else if (serviceType.includes('Residential')) score += 15;
+    
+    // Location scoring
+    const location = inputData.address_city || '';
+    const highValueLocations = ['Montreal', 'Westmount', 'Laval', 'Brossard'];
+    if (highValueLocations.some(loc => location.includes(loc))) score += 20;
+    
+    // Referral source scoring
+    const source = inputData.lead_source || '';
+    if (source.includes('Referral')) score += 25;
+    else if (source.includes('Google')) score += 15;
+    else if (source.includes('Facebook')) score += 10;
+    
+    // Budget scoring
+    const budget = parseFloat(inputData.estimated_value || 0);
+    if (budget > 5000) score += 30;
+    else if (budget > 2000) score += 20;
+    else if (budget > 1000) score += 10;
+    
+    // Cap the score at 100
+    score = Math.min(score, 100);
+    
+    output = { 
+      score: score,
+      priority: score >= 70 ? 'High' : score >= 40 ? 'Medium' : 'Low'
+    };
+    ```
+  </Step>
+  
+  <Step title="Update Pipedrive Deal">
+    Updates the deal in Pipedrive with the calculated score and priority.
+  </Step>
+  
+  <Step title="Conditional Notification">
+    If score is high (≥70), sends notification to sales manager.
+  </Step>
+</Steps>
+
+<Frame>
+  <img src="/images/lead-scoring-zap.png" alt="Lead Scoring Zap" className="rounded-lg" />
+</Frame>
+
+## Customer Service Automations
+
+### Service Appointment Reminder
+
+**Platform:** Pabbly  
+**Purpose:** Send automated reminders to customers before service appointments
+
+<Steps>
+  <Step title="Trigger: Daily Scheduled Trigger">
+    Runs every morning at 7:00 AM to check for upcoming appointments.
+  </Step>
+  
+  <Step title="Fetch Tomorrow's Appointments">
+    Uses the Jobber API to retrieve all appointments scheduled for the next day.
+  </Step>
+  
+  <Step title="Loop Through Appointments">
+    Processes each appointment individually.
+  </Step>
+  
+  <Step title="Filter: Valid Contact Info">
+    Checks if the customer has a valid email or phone number.
+  </Step>
+  
+  <Step title="Format Appointment Details">
+    Prepares the appointment details for the reminder:
+    ```
+    Date: {{formatDate(appointment.start_at, "dddd, MMMM D")}}
+    Time: {{formatDate(appointment.start_at, "h:mm A")}} - {{formatDate(appointment.end_at, "h:mm A")}}
+    Service: {{appointment.service_type}}
+    Address: {{appointment.property_address}}
+    Technician: {{appointment.assigned_to}}
+    ```
+  </Step>
+  
+  <Step title="Conditional: Contact Method">
+    Decides whether to send an email, SMS, or both based on available contact information.
+  </Step>
+  
+  <Step title="Send Email Reminder">
+    Sends a branded email reminder with appointment details using Mailchimp.
+  </Step>
+  
+  <Step title="Send SMS Reminder">
+    Sends an SMS reminder with appointment details using Twilio.
+  </Step>
+  
+  <Step title="Log Reminder Sent">
+    Records that a reminder was sent in the customer's Jobber record.
+  </Step>
+</Steps>
+
+<Frame>
+  <img src="/images/appointment-reminder-workflow.png" alt="Appointment Reminder Workflow" className="rounded-lg" />
+</Frame>
+
+### Customer Feedback Collection
+
+**Platform:** Zapier  
+**Purpose:** Automatically request and collect customer feedback after service completion
+
+<Steps>
+  <Step title="Trigger: Jobber Job Completed">
+    Triggered when a job is marked as completed in Jobber.
+  </Step>
+  
+  <Step title="Delay: Wait 24 Hours">
+    Waits 24 hours after job completion before sending the feedback request.
+  </Step>
+  
+  <Step title="Get Customer Details">
+    Retrieves complete customer information from Jobber.
+  </Step>
+  
+  <Step title="Generate Feedback Form">
+    Creates a personalized feedback form using Jotform:
+    ```
+    Form Fields:
+    - Job ID: {{job_id}} (Hidden field)
+    - Customer Name: {{customer_name}} (Hidden field)
+    - Service Date: {{service_date}} (Hidden field)
+    - Service Type: {{service_type}} (Hidden field)
+    - Overall Satisfaction (Star rating)
+    - Technician Professionalism (Star rating)
+    - Quality of Service (Star rating)
+    - Comments (Text area)
+    - Would you recommend us? (Yes/No)
+    ```
+  </Step>
+  
+  <Step title="Send Email with Form Link">
+    Sends an email to the customer with the feedback form link.
+  </Step>
+  
+  <Step title="Update Jobber">
+    Adds a note in Jobber that a feedback request was sent.
+  </Step>
+  
+  <Step title="Set Up Trigger for Responses">
+    Connects to another Zap that processes feedback form submissions.
+  </Step>
+</Steps>
+
+<Frame>
+  <img src="/images/feedback-collection-zap.png" alt="Feedback Collection Zap" className="rounded-lg" />
+</Frame>
+
+## Operational Automations
+
+### Technician Schedule Notification
+
+**Platform:** Pabbly  
+**Purpose:** Send daily schedule notifications to technicians
+
+<Steps>
+  <Step title="Trigger: Daily Schedule at 6:00 PM">
+    Runs every evening at 6:00 PM to prepare next day's schedule.
+  </Step>
+  
+  <Step title="Get All Technicians">
+    Retrieves the list of active technicians from the database.
+  </Step>
+  
+  <Step title="Loop Through Technicians">
+    Processes each technician individually.
+  </Step>
+  
+  <Step title="Get Tomorrow's Jobs">
+    For each technician, fetches their assigned jobs for the next day from Jobber.
+  </Step>
+  
+  <Step title="Filter: Has Assignments">
+    Only continues if the technician has at least one job scheduled.
+  </Step>
+  
+  <Step title="Format Schedule">
+    Organizes the jobs in chronological order and formats them for the notification:
+    ```javascript
+    let scheduleText = `*Your Schedule for ${formatDate(tomorrow, "dddd, MMMM D")}*\n\n`;
+    
+    jobs.forEach((job, index) => {
+      scheduleText += `*${index + 1}. ${formatTime(job.start_time)} - ${formatTime(job.end_time)}*\n`;
+      scheduleText += `Customer: ${job.customer_name}\n`;
+      scheduleText += `Service: ${job.service_type}\n`;
+      scheduleText += `Address: ${job.address}\n`;
+      scheduleText += `Notes: ${job.notes || "None"}\n\n`;
+    });
+    
+    scheduleText += "Please confirm receipt of this schedule. Reply with any questions.";
+    
+    return { scheduleText };
+    ```
+  </Step>
+  
+  <Step title="Send SMS Notification">
+    Sends the formatted schedule to the technician via SMS.
+  </Step>
+  
+  <Step title="Send Slack Backup">
+    Sends the same schedule to a private Slack channel for the technician.
+  </Step>
+  
+  <Step title="Log Completion">
+    Records that the schedule notification was sent.
+  </Step>
+</Steps>
+
+<Frame>
+  <img src="/images/technician-schedule-workflow.png" alt="Technician Schedule Workflow" className="rounded-lg" />
+</Frame>
+
+### Inventory Alert System
+
+**Platform:** Zapier  
+**Purpose:** Monitor inventory levels and alert when supplies are running low
+
+<Steps>
+  <Step title="Trigger: Weekly Schedule">
+    Runs every Monday morning to check inventory levels.
+  </Step>
+  
+  <Step title="Get Inventory Data">
+    Fetches current inventory data from Google Sheets inventory tracker.
+  </Step>
+  
+  <Step title="Loop Through Items">
+    Processes each inventory item individually.
+  </Step>
+  
+  <Step title="Check Threshold">
+    Compares current quantity against reorder threshold.
+    ```
+    Current Quantity <= Reorder Threshold
+    ```
+  </Step>
+  
+  <Step title="Filter: Low Stock Items">
+    Collects all items that are below their reorder threshold.
+  </Step>
+  
+  <Step title="Format Alert Message">
+    Creates a formatted alert message with all low stock items:
+    ```
+    *Inventory Alert: Low Stock Items*
+    
+    The following items need to be reordered:
+    
+    {{#each lowStockItems}}
+    • *{{this.item_name}}*: {{this.current_quantity}} remaining (Reorder threshold: {{this.reorder_threshold}})
+    {{/each}}
+    
+    Please place orders for these items as soon as possible.
+    ```
+  </Step>
+  
+  <Step title="Send Email Alert">
+    Sends an email alert to the inventory manager.
+  </Step>
+  
+  <Step title="Send Slack Notification">
+    Posts the alert in the #inventory channel in Slack.
+  </Step>
+  
+  <Step title="Create Tasks">
+    Creates Asana tasks for reordering each low stock item.
+  </Step>
+</Steps>
+
+<Frame>
+  <img src="/images/inventory-alert-zap.png" alt="Inventory Alert Zap" className="rounded-lg" />
+</Frame>
+
+## Reporting Automations
+
+### Daily Sales Dashboard
+
+**Platform:** Zapier  
+**Purpose:** Generate and distribute daily sales performance report
+
+<Steps>
+  <Step title="Trigger: Daily Schedule at 5:00 AM">
+    Runs every morning at 5:00 AM to prepare the previous day's report.
+  </Step>
+  
+  <Step title="Calculate Date Range">
+    Determines the previous day's date and formats it properly.
+  </Step>
+  
+  <Step title="Get Sales Data">
+    Queries Pipedrive API for the previous day's deals data.
+  </Step>
+  
+  <Step title="Get Service Data">
+    Queries Jobber API for the previous day's service data.
+  </Step>
+  
+  <Step title="Process and Calculate Metrics">
+    Uses a Code step to calculate key performance metrics:
+    ```javascript
+    // Sample data processing code
+    const metrics = {
+      totalNewLeads: data.new_leads.length,
+      totalDealsWon: data.won_deals.length,
+      totalRevenue: data.won_deals.reduce((sum, deal) => sum + deal.value, 0),
+      totalJobsCompleted: data.completed_jobs.length,
+      avgJobValue: data.completed_jobs.length > 0 
+        ? data.completed_jobs.reduce((sum, job) => sum + job.value, 0) / data.completed_jobs.length 
+        : 0,
+      conversionRate: data.new_leads.length > 0 
+        ? (data.won_deals.length / data.new_leads.length) * 100 
+        : 0
+    };
+    
+    // Format for display
+    metrics.totalRevenueFormatted = formatCurrency(metrics.totalRevenue);
+    metrics.avgJobValueFormatted = formatCurrency(metrics.avgJobValue);
+    metrics.conversionRateFormatted = metrics.conversionRate.toFixed(1) + '%';
+    
+    return metrics;
+    ```
+  </Step>
+  
+  <Step title="Create Google Sheet Report">
+    Updates a Google Sheet with the daily metrics.
+  </Step>
+  
+  <Step title="Generate PDF Report">
+    Creates a PDF version of the daily report.
+  </Step>
+  
+  <Step title="Send Email Report">
+    Emails the PDF report to the management team.
+  </Step>
+  
+  <Step title="Post Slack Summary">
+    Posts a concise summary in the #daily-metrics Slack channel:
+    ```
+    *Daily Sales Report: {{formatDate(yesterday, "MMM D, YYYY")}}*
+    
+    📊 *Key Metrics:*
+    • New Leads: {{totalNewLeads}}
+    • Deals Won: {{totalDealsWon}}
+    • Revenue: {{totalRevenueFormatted}}
+    • Jobs Completed: {{totalJobsCompleted}}
+    • Avg Job Value: {{avgJobValueFormatted}}
+    • Conversion Rate: {{conversionRateFormatted}}
+    
+    Full report available in Google Drive: {{reportUrl}}
+    ```
+  </Step>
+</Steps>
+
+<Frame>
+  <img src="/images/daily-sales-report-zap.png" alt="Daily Sales Report Zap" className="rounded-lg" />
+</Frame>
+
+### Customer Satisfaction Tracking
+
+**Platform:** Pabbly  
+**Purpose:** Aggregate customer feedback and track satisfaction trends
+
+<Steps>
+  <Step title="Trigger: New Feedback Form Submission">
+    Activates when a customer submits a feedback form.
+  </Step>
+  
+  <Step title="Process Ratings">
+    Calculates overall satisfaction score from individual ratings.
+  </Step>
+  
+  <Step title="Conditional: Alert on Low Ratings">
+    If the overall rating is below 3 stars, sends an immediate alert to the customer service manager.
+  </Step>
+  
+  <Step title="Update Customer Records">
+    Updates the customer's record in Pipedrive with the feedback data.
+  </Step>
+  
+  <Step title="Add to Feedback Database">
+    Adds the feedback data to a Google Sheet for tracking.
+  </Step>
+  
+  <Step title="Update Dashboard">
+    Updates a Google Data Studio dashboard with the new feedback data.
+  </Step>
+  
+  <Step title="Weekly Summary Trigger">
+    Connects to another workflow that generates weekly satisfaction summaries.
+  </Step>
+</Steps>
+
+<Frame>
+  <img src="/images/satisfaction-tracking-workflow.png" alt="Satisfaction Tracking Workflow" className="rounded-lg" />
+</Frame>
+
+## Integration Automations
+
+### CRM to FSM Sync
+
+**Platform:** Zapier  
+**Purpose:** Synchronize customer data between Pipedrive (CRM) and Jobber (FSM)
+
+<Steps>
+  <Step title="Trigger: New or Updated Person in Pipedrive">
+    Activates when a new person is created or an existing person is updated in Pipedrive.
+  </Step>
+  
+  <Step title="Check for Existing Customer">
+    Searches Jobber to see if this customer already exists.
+  </Step>
+  
+  <Step title="Format Customer Data">
+    Standardizes the customer data for Jobber:
+    ```javascript
+    // Format name components
+    const nameParts = inputData.name.split(' ');
+    const lastName = nameParts.pop();
+    const firstName = nameParts.join(' ');
+    
+    // Format address
+    const address = {
+      street: inputData.address || '',
+      city: inputData.city || '',
+      province: inputData.province || '',
+      postal_code: inputData.postal_code || '',
+      country: 'Canada'
+    };
+    
+    return {
+      firstName,
+      lastName,
+      email: inputData.email || '',
+      phone: inputData.phone || '',
+      address,
+      notes: `Imported from Pipedrive ID: ${inputData.id}`
+    };
+    ```
+  </Step>
+  
+  <Step title="Conditional: Create or Update">
+    If the customer doesn't exist in Jobber, creates a new one. If they do exist, updates their information.
+    
+    **Path 1: Create New Customer**
+    ```
+    Action: Create Client in Jobber
+    Data: All formatted customer data
+    ```
+    
+    **Path 2: Update Existing Customer**
+    ```
+    Action: Update Client in Jobber
+    Data: Only fields that have changed
+    ```
+  </Step>
+  
+  <Step title="Update Pipedrive with Jobber ID">
+    Adds the Jobber customer ID to the Pipedrive person record for future reference.
+  </Step>
+  
+  <Step title="Log Sync Event">
+    Records the sync operation in a log for tracking and debugging.
+  </Step>
+</Steps>
+
+<Frame>
+  <img src="/images/crm-fsm-sync-zap.png" alt="CRM to FSM Sync Zap" className="rounded-lg" />
+</Frame>
+
+### Quote to Invoice Automation
+
+**Platform:** Zapier  
+**Purpose:** Automatically convert approved quotes to invoices
+
+<Steps>
+  <Step title="Trigger: Quote Status Changed">
+    Activates when a quote's status is changed to "Approved" in Pipedrive.
+  </Step>
+  
+  <Step title="Get Quote Details">
+    Retrieves the complete quote details from Pipedrive.
+  </Step>
+  
+  <Step title="Get Customer Details">
+    Fetches the customer information associated with the quote.
+  </Step>
+  
+  <Step title="Format for Invoice">
+    Formats the quote data for creating an invoice:
+    ```javascript
+    // Format line items
+    const lineItems = inputData.products.map(product => ({
+      description: product.name,
+      quantity: product.quantity,
+      unit_price: product.unit_price,
+      tax_rate: product.tax_rate || 0
+    }));
+    
+    // Calculate totals
+    const subtotal = lineItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+    const tax = lineItems.reduce((sum, item) => sum + (item.quantity * item.unit_price * item.tax_rate / 100), 0);
+    const total = subtotal + tax;
+    
+    return {
+      customer_id: inputData.customer_id,
+      quote_id: inputData.id,
+      line_items: lineItems,
+      subtotal: subtotal,
+      tax: tax,
+      total: total,
+      due_date: addDays(new Date(), 30).toISOString().split('T')[0] // 30 days from now
+    };
+    ```
+  </Step>
+  
+  <Step title="Create Invoice in Jobber">
+    Creates a new invoice in Jobber based on the quote data.
+  </Step>
+  
+  <Step title="Update Pipedrive Deal">
+    Updates the Pipedrive deal to indicate an invoice has been created.
+  </Step>
+  
+  <Step title="Send Invoice Notification">
+    Sends an email notification to the customer that an invoice has been created.
+  </Step>
+  
+  <Step title="Create Follow-up Task">
+    Creates a follow-up task in Asana to check invoice status in 7 days.
+  </Step>
+</Steps>
+
+<Frame>
+  <img src="/images/quote-to-invoice-zap.png" alt="Quote to Invoice Zap" className="rounded-lg" />
+</Frame>
+
+## Advanced Automation Examples
+
+### Multi-Step Onboarding Workflow
+
+**Platform:** Zapier  
+**Purpose:** Automate the entire customer onboarding process
+
+<Steps>
+  <Step title="Trigger: Deal Stage Changed to 'Won'">
+    Activates when a deal is moved to the "Won" stage in Pipedrive.
+  </Step>
+  
+  <Step title="Create Welcome Email">
+    Generates and sends a personalized welcome email to the new customer.
+  </Step>
+  
+  <Step title="Create Customer in Jobber">
+    Creates or updates the customer record in Jobber.
+  </Step>
+  
+  <Step title="Schedule Initial Service">
+    Creates a new job in Jobber based on the deal information.
+  </Step>
+  
+  <Step title="Create Customer Portal Account">
+    Sets up an account for the customer in the customer portal.
+  </Step>
+  
+  <Step title="Send Portal Access Instructions">
+    Emails the customer with instructions for accessing their portal account.
+  </Step>
+  
+  <Step title="Add to Marketing List">
+    Adds the customer to the appropriate marketing list in Mailchimp.
+  </Step>
+  
+  <Step title="Create Customer Folder">
+    Creates a new folder in Google Drive for the customer's documents.
+  </Step>
+  
+  <Step title="Generate Welcome Package">
+    Creates a personalized welcome PDF and saves it to the customer's folder.
+  </Step>
+  
+  <Step title="Assign Customer Success Rep">
+    Assigns a customer success representative based on location and service type.
+  </Step>
+  
+  <Step title="Create Follow-up Sequence">
+    Sets up a series of follow-up tasks in Asana for the customer success rep.
+  </Step>
+  
+  <Step title="Send Internal Notification">
+    Notifies the relevant team members about the new customer.
+  </Step>
+</Steps>
+
+<Frame>
+  <img src="/images/onboarding-workflow-zap.png" alt="Onboarding Workflow Zap" className="rounded-lg" />
+</Frame>
+
+### Intelligent Dispatch System
+
+**Platform:** Zapier (with Sub-Zaps)  
+**Purpose:** Optimize technician scheduling based on location, skills, and availability
+
+<Steps>
+  <Step title="Trigger: New Job Created">
+    Activates when a new job is created in Jobber.
+  </Step>
+  
+  <Step title="Get Job Details">
+    Retrieves complete job information including location and service type.
+  </Step>
+  
+  <Step title="Geocode Address">
+    Converts the job address to geographical coordinates (latitude/longitude).
+  </Step>
+  
+  <Step title="Find Nearby Technicians">
+    Queries a database of technicians to find those within a reasonable distance.
+  </Step>
+  
+  <Step title="Filter by Skills">
+    Filters the technician list to those qualified for the specific service type.
+  </Step>
+  
+  <Step title="Check Availability">
+    Checks each technician's calendar to determine availability.
+  </Step>
+  
+  <Step title="Score and Rank">
+    Scores each technician based on distance, skills, and availability:
+    ```javascript
+    // Calculate technician scores
+    technicians.forEach(tech => {
+      // Base score
+      let score = 100;
+      
+      // Distance factor (closer is better)
+      score -= (tech.distance * 2); // Subtract 2 points per km
+      
+      // Skill match
+      if (tech.skills.includes(job.service_type)) {
+        score += 20; // Bonus for exact skill match
+      } else if (tech.skills.some(skill => job.service_type.includes(skill))) {
+        score += 10; // Bonus for partial skill match
+      }
+      
+      // Availability factor
+      if (tech.availability === 'optimal') {
+        score += 15; // Bonus for optimal time slot
+      } else if (tech.availability === 'suboptimal') {
+        score += 5; // Small bonus for possible but not ideal time
+      }
+      
+      // Previous customer history
+      if (tech.previous_customers.includes(job.customer_id)) {
+        score += 25; // Big bonus for previous experience with customer
+      }
+      
+      tech.score = Math.max(0, score); // Ensure non-negative score
+    });
+    
+    // Sort by score
+    return technicians.sort((a, b) => b.score - a.score);
+    ```
+  </Step>
+  
+  <Step title="Select Best Match">
+    Chooses the highest-scoring technician for the job.
+  </Step>
+  
+  <Step title="Assign Job">
+    Assigns the job to the selected technician in Jobber.
+  </Step>
+  
+  <Step title="Send Assignment Notification">
+    Notifies the technician of the new assignment.
+  </Step>
+  
+  <Step title="Update Dispatch Log">
+    Records the assignment decision and factors in a Google Sheet.
+  </Step>
+</Steps>
+
+<Frame>
+  <img src="/images/intelligent-dispatch-zap.png" alt="Intelligent Dispatch Zap" className="rounded-lg" />
+</Frame>
+
+## Automation Templates
+
+These ready-to-use templates can be imported into your Zapier or Pabbly account and customized for your needs.
+
+### Website Form to CRM
+
+**Platform:** Zapier  
+**Template Link:** [Import Template](https://zapier.com/shared/form-to-crm/123456)
+
+<Frame>
+  <img src="/images/form-to-crm-template.png" alt="Form to CRM Template" className="rounded-lg" />
+</Frame>
+
+This template connects Jotform, Typeform, or Google Forms to Pipedrive CRM:
+
+1. **Input:** Form submission with contact and interest information
+2. **Processing:** Formats and enriches the lead data
+3. **Output:** Creates a person and deal in Pipedrive, adds tags based on interests
+
+### Client Communication Logger
+
+**Platform:** Pabbly  
+**Template Link:** [Import Template](https://pabbly.com/connect/template/communication-logger/123456)
+
+<Frame>
+  <img src="/images/communication-logger-template.png" alt="Communication Logger Template" className="rounded-lg" />
+</Frame>
+
+This template automatically logs client communications from multiple channels:
+
+1. **Input:** Emails, SMS messages, and call records
+2. **Processing:** Extracts client info and communication details
+3. **Output:** Logs all communications in a central Google Sheet and adds notes to Jobber
+
+### Service Quality Monitor
+
+**Platform:** Zapier  
+**Template Link:** [Import Template](https://zapier.com/shared/service-quality/123456)
+
+<Frame>
+  <img src="/images/quality-monitor-template.png" alt="Service Quality Monitor Template" className="rounded-lg" />
+</Frame>
+
+This template monitors completed jobs and feedback:
+
+1. **Input:** Completed jobs and customer feedback
+2. **Processing:** Analyzes ratings and comments for satisfaction levels
+3. **Output:** Alerts for low ratings, maintains a service quality dashboard
+
+## Implementation Tips
+
+### General Best Practices
+
+Based on our real-world implementations, here are some crucial tips:
+
+1. **Start Small:** Begin with simple automations and build complexity over time
+2. **Test Thoroughly:** Always test with real-world data before activating
+3. **Document Everything:** Create detailed documentation for all automations
+4. **Monitoring Plans:** Set up regular checks and alerts for automation health
+5. **Error Handling:** Plan for all potential failure points and add appropriate error handling
+
+### Common Pitfalls to Avoid
+
+<AccordionGroup>
+  <Accordion title="Overcomplicating Workflows">
+    **Problem:** Creating overly complex automations that are difficult to maintain.
+    
+    **Solution:** Break complex processes into smaller, more manageable workflows. Use Sub-Zaps in Zapier or separate workflows in Pabbly that connect through webhooks.
+    
+    **Example:** Instead of one massive customer onboarding workflow, create separate workflows for account creation, welcome emails, service scheduling, etc.
+  </Accordion>
+  
+  <Accordion title="Neglecting Data Validation">
+    **Problem:** Assuming input data will always be correct and complete.
+    
+    **Solution:** Add data validation steps early in your automations and handle missing or incorrect data gracefully.
+    
+    **Example:** Before creating a customer record, validate that the email is correctly formatted and the phone number includes the country code.
+  </Accordion>
+  
+  <Accordion title="Ignoring Error Scenarios">
+    **Problem:** Not planning for potential failures in the automation flow.
+    
+    **Solution:** Add error handling and notification mechanisms to all critical automations.
+    
+    **Example:** If an invoice creation fails, send an alert to the finance team and create a task for manual follow-up.
+  </Accordion>
+</AccordionGroup>
+
+## Performance Optimization
+
+To ensure your automations run efficiently:
+
+<CardGroup cols={2}>
+  <Card title="Reduce API Calls" icon="server">
+    Minimize the number of API calls by:
+    - Batching requests when possible
+    - Using lookup tables instead of multiple lookups
+    - Storing commonly needed data in variables
+  </Card>
+  
+  <Card title="Use Early Filters" icon="filter">
+    Add filters early in your workflow to:
+    - Prevent unnecessary processing
+    - Reduce task usage
+    - Improve overall performance
+  </Card>
+  
+  <Card title="Optimize Data Transformations" icon="arrows-rotate">
+    Make data transformations more efficient by:
+    - Using built-in formatters where possible
+    - Combining multiple transformations
+    - Writing efficient code for complex transformations
+  </Card>
+  
+  <Card title="Schedule Strategically" icon="calendar">
+    Optimize scheduled automations by:
+    - Avoiding peak usage times
+    - Spreading out resource-intensive tasks
+    - Considering business hours and time zones
+  </Card>
+</CardGroup>
+
+## Success Metrics
+
+When implementing these automations, track these key metrics to measure success:
+
+<AccordionGroup>
+  <Accordion title="Time Savings">
+    **Metric:** Hours saved per week/month
+    
+    **Measurement Method:** Compare time spent on tasks before and after automation
+    
+    **Target:** Minimum 70% reduction in manual time spent
+  </Accordion>
+  
+  <Accordion title="Error Reduction">
+    **Metric:** Percentage decrease in data entry errors
+    
+    **Measurement Method:** Track error rates before and after automation
+    
+    **Target:** 90%+ reduction in data entry errors
+  </Accordion>
+  
+  <Accordion title="Response Time">
+    **Metric:** Average time to respond to customers/leads
+    
+    **Measurement Method:** Compare average response times
+    
+    **Target:** 80%+ reduction in response time
+  </Accordion>
+  
+  <Accordion title="Process Consistency">
+    **Metric:** Percentage of processes following standard workflow
+    
+    **Measurement Method:** Audit process adherence
+    
+    **Target:** 95%+ process standardization
+  </Accordion>
+</AccordionGroup>
+
+## Getting Support
+
+If you need help implementing any of these example automations:
+
+1. **Internal Support:** Contact the IT team via the #it-discussions Slack channel
+2. **Documentation:** Check our [Zapier](/automations/zapier) and [Pabbly](/automations/pabbly) guides
+3. **Training:** Request a training session through the [IT Support Portal](https://support.duraclim.com)
+4. **Customization:** Submit a enhancement request for specialized automation needs
+
+## Contributing Your Examples
+
+Have you created an effective automation? Share it with the team:
+
+1. Document your automation following our [design standards](/automations/design-standards)
+2. Create a Miro board detailing the workflow
+3. Submit your example via the [Automation Examples Submission Form](https://forms.duraclim.com/automation-submission)
+4. The IT team will review and potentially add it to this examples page

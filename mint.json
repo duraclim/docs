@@ -1,0 +1,142 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Duraclim IT Knowledge Base",
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#0D73FF",
+    "light": "#0D9AFF",
+    "dark": "#0D5BFF",
+    "anchors": {
+      "from": "#0D73FF",
+      "to": "#0D9AFF"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "IT Support",
+      "url": "mailto:it@duraclim.com"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "IT Discussions",
+    "url": "slack://channel?team=T123456&id=it-discussions"
+  },
+  "anchors": [
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/duraclim"
+    },
+    {
+      "name": "Slack",
+      "icon": "slack",
+      "url": "slack://channel?team=T123456&id=it-discussions"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Welcome",
+      "pages": [
+        "intro",
+        "getting-started",
+        "glossary"
+      ]
+    },
+    {
+      "group": "Development Guidelines",
+      "pages": [
+        "development/code-style",
+        "development/naming-conventions",
+        "development/git-workflow",
+        "development/testing",
+        "development/security-practices"
+      ]
+    },
+    {
+      "group": "Projects",
+      "pages": [
+        {
+          "group": "Next.js Applications",
+          "pages": [
+            "projects/nextjs/overview",
+            "projects/nextjs/calculator",
+            "projects/nextjs/structure",
+            "projects/nextjs/deployment"
+          ]
+        },
+        {
+          "group": "Go Projects",
+          "pages": [
+            "projects/go/overview",
+            "projects/go/reschedule-client",
+            "projects/go/structure",
+            "projects/go/deployment"
+          ]
+        },
+        {
+          "group": "Database",
+          "pages": [
+            "projects/database/overview",
+            "projects/database/schema",
+            "projects/database/migrations",
+            "projects/database/supabase"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "Technical Standards",
+      "pages": [
+        "standards/languages",
+        "standards/frameworks",
+        "standards/design-patterns"
+      ]
+    },
+    {
+      "group": "Workflows & Automation",
+      "pages": [
+        "automations/overview",
+        "automations/design-standards",
+        "automations/naming-conventions",
+        "automations/zapier",
+        "automations/pabbly",
+        "automations/examples"
+      ]
+    },
+    {
+      "group": "API Documentation",
+      "pages": [
+        "api/overview",
+        "api/authentication",
+        "api/endpoints",
+        "api/integrations"
+      ]
+    },
+    {
+      "group": "Resources & Tools",
+      "pages": [
+        "resources/tools",
+        "resources/recommended-reading",
+        "resources/training-materials",
+        "resources/troubleshooting"
+      ]
+    },
+    {
+      "group": "Team Communication",
+      "pages": [
+        "communication/guidelines",
+        "communication/channels",
+        "communication/meetings"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/duraclim",
+    "linkedin": "https://linkedin.com/company/duraclim"
+  },
+  "feedback": {
+    "thumbsRating": true,
+    "raiseIssue": true,
+    "suggestEdit": true
+  }
+}

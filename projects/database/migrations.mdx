@@ -1,0 +1,470 @@
+---
+title: Database Migrations
+description: Guidelines and processes for managing database schema changes and migrations
+icon: database-export
+---
+
+# Database Migrations
+
+This document outlines our approach to database migrations - the process of evolving our database schema over time to support new features while maintaining backward compatibility.
+
+<Frame>
+  <img src="/images/database-migration-process.png" alt="Database Migration Process" className="rounded-lg" />
+</Frame>
+
+## Migration Philosophy
+
+Our approach to database migrations is guided by the following principles:
+
+1. **Safety First** - Migrations should be safe and reversible when possible
+2. **Backward Compatibility** - Maintain compatibility with existing code during transition periods
+3. **Zero Downtime** - Migrations should not require application downtime
+4. **Testability** - Migrations must be testable before being applied to production
+5. **Version Control** - All migrations should be tracked in version control
+
+## Migration Tools
+
+We use the following tools for database migrations:
+
+<AccordionGroup>
+  <Accordion title="Supabase Migrations">
+    Supabase provides built-in migration capabilities through its CLI:
+    
+    ```bash
+    # Generate a new migration
+    supabase migration new add_users_table
+    
+    # Apply migrations
+    supabase db push
+    
+    # Verify migrations
+    supabase db diff
+    ```
+    
+    The Supabase migration files are stored in the `supabase/migrations` directory.
+  </Accordion>
+  
+  <Accordion title="SQL Migration Files">
+    Plain SQL files with sequential numbering:
+    
+    ```
+    migrations/
+    ├── 00001_create_users_table.sql
+    ├── 00002_add_profiles_table.sql
+    ├── 00003_add_email_index.sql
+    └── ...
+    ```
+    
+    Each file contains forward migrations (changes to apply) and sometimes rollback statements (how to undo changes).
+  </Accordion>
+  
+  <Accordion title="Node.js Scripts">
+    For more complex migrations, we use custom Node.js scripts:
+    
+    ```javascript
+    // migrations/scripts/20230401_migrate_user_data.js
+    const { createClient } = require('@supabase/supabase-js');
+    
+    async function migrateUserData() {
+      const supabase = createClient(
+        process.env.SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_KEY
+      );
+      
+      // Fetch data from old table
+      const { data: oldUsers, error: fetchError } = await supabase
+        .from('old_users')
+        .select('*');
+        
+      if (fetchError) {
+        console.error('Error fetching old users:', fetchError);
+        process.exit(1);
+      }
+      
+      // Transform data
+      const newUsers = oldUsers.map(user => ({
+        id: user.id,
+        email: user.email,
+        full_name: `${user.first_name} ${user.last_name}`,
+        role: user.user_type === 'admin' ? 'admin' : 'user',
+        created_at: user.created_at,
+        updated_at: new Date().toISOString()
+      }));
+      
+      // Insert into new table
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert(newUsers);
+        
+      if (insertError) {
+        console.error('Error inserting new users:', insertError);
+        process.exit(1);
+      }
+      
+      console.log(`Successfully migrated ${newUsers.length} users`);
+    }
+    
+    migrateUserData().catch(console.error);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Migration Workflow
+
+Our database migration workflow follows these steps:
+
+<Steps>
+  <Step title="Create a feature branch">
+    Create a branch for your changes:
+    ```bash
+    git checkout -b feature/add-customer-notes
+    ```
+  </Step>
+  
+  <Step title="Create migration files">
+    Create sequentially numbered migration files:
+    ```bash
+    # Using Supabase CLI
+    supabase migration new add_customer_notes
+    
+    # This creates:
+    # supabase/migrations/20230415131245_add_customer_notes.sql
+    ```
+  </Step>
+  
+  <Step title="Write migration SQL">
+    Edit the migration file with your changes:
+    ```sql
+    -- supabase/migrations/20230415131245_add_customer_notes.sql
+    
+    -- Create customer notes table
+    CREATE TABLE public.customer_notes (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      customer_id UUID NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
+      created_by UUID NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
+      content TEXT NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    
+    -- Create index for efficient lookups
+    CREATE INDEX idx_customer_notes_customer_id ON public.customer_notes (customer_id);
+    
+    -- Add RLS policies
+    ALTER TABLE public.customer_notes ENABLE ROW LEVEL SECURITY;
+    
+    -- Everyone can read notes
+    CREATE POLICY "Anyone can read customer notes"
+      ON public.customer_notes
+      FOR SELECT
+      USING (true);
+    
+    -- Only note creator or admins can update notes
+    CREATE POLICY "Note creators and admins can update notes"
+      ON public.customer_notes
+      FOR UPDATE
+      USING (
+        auth.uid() = created_by OR
+        EXISTS (
+          SELECT 1 FROM public.user_roles
+          WHERE user_id = auth.uid() AND role = 'admin'
+        )
+      );
+    
+    -- Only note creator or admins can delete notes
+    CREATE POLICY "Note creators and admins can delete notes"
+      ON public.customer_notes
+      FOR DELETE
+      USING (
+        auth.uid() = created_by OR
+        EXISTS (
+          SELECT 1 FROM public.user_roles
+          WHERE user_id = auth.uid() AND role = 'admin'
+        )
+      );
+    ```
+  </Step>
+  
+  <Step title="Test locally">
+    Apply the migration to your local development database:
+    ```bash
+    supabase db push
+    ```
+    
+    Verify the changes by checking the schema and testing with your application code.
+  </Step>
+  
+  <Step title="Commit and push">
+    ```bash
+    git add supabase/migrations/20230415131245_add_customer_notes.sql
+    git commit -m "Add customer notes table"
+    git push origin feature/add-customer-notes
+    ```
+  </Step>
+  
+  <Step title="Create pull request">
+    Create a pull request and request code review.
+  </Step>
+  
+  <Step title="Deploy to staging">
+    Once approved, deploy to staging environment:
+    ```bash
+    # Apply migrations to staging
+    supabase db push --db-url=$STAGING_DB_URL
+    ```
+  </Step>
+  
+  <Step title="Deploy to production">
+    After testing in staging, deploy to production:
+    ```bash
+    # Apply migrations to production
+    supabase db push --db-url=$PRODUCTION_DB_URL
+    ```
+  </Step>
+</Steps>
+
+## Migration Best Practices
+
+### Safe Migration Patterns
+
+<AccordionGroup>
+  <Accordion title="Adding Tables">
+    Adding new tables is generally safe:
+    
+    ```sql
+    -- Safe: Adding a new table
+    CREATE TABLE public.new_table (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    ```
+  </Accordion>
+  
+  <Accordion title="Adding Columns">
+    When adding columns, make them nullable first:
+    
+    ```sql
+    -- Safe: Adding a nullable column
+    ALTER TABLE public.existing_table
+    ADD COLUMN new_column TEXT;
+    
+    -- Then fill with data (if necessary)
+    UPDATE public.existing_table
+    SET new_column = 'default value';
+    
+    -- Finally add constraints (if needed)
+    ALTER TABLE public.existing_table
+    ALTER COLUMN new_column SET NOT NULL;
+    ```
+  </Accordion>
+  
+  <Accordion title="Removing Columns (Two-Phase)">
+    Removing columns should be done in two phases:
+    
+    ```sql
+    -- Phase 1: Stop using the column in code, then make it nullable
+    ALTER TABLE public.existing_table
+    ALTER COLUMN old_column DROP NOT NULL;
+    
+    -- Phase 2: Later migration after deployment
+    ALTER TABLE public.existing_table
+    DROP COLUMN old_column;
+    ```
+  </Accordion>
+  
+  <Accordion title="Renaming Columns (Three-Phase)">
+    Renaming columns should be done in three phases:
+    
+    ```sql
+    -- Phase 1: Add new column
+    ALTER TABLE public.users
+    ADD COLUMN first_name TEXT;
+    
+    -- Copy data
+    UPDATE public.users
+    SET first_name = name;
+    
+    -- Phase 2: Update code to use both columns
+    -- Deploy code that writes to both columns
+    
+    -- Phase 3: After all code is using new column
+    ALTER TABLE public.users
+    DROP COLUMN name;
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Dangerous Migration Patterns to Avoid
+
+<AccordionGroup>
+  <Accordion title="Renaming Tables">
+    Direct table renaming breaks existing code:
+    
+    ```sql
+    -- Dangerous: Renaming tables directly
+    ALTER TABLE public.old_table_name
+    RENAME TO new_table_name;
+    ```
+    
+    Instead, create a view with the old name:
+    
+    ```sql
+    -- Better approach
+    -- Create new table
+    CREATE TABLE public.new_table_name AS
+    SELECT * FROM public.old_table_name;
+    
+    -- Create view with old table name
+    CREATE VIEW public.old_table_name AS
+    SELECT * FROM public.new_table_name;
+    ```
+  </Accordion>
+  
+  <Accordion title="Changing Column Types">
+    Changing column types can be risky:
+    
+    ```sql
+    -- Dangerous: Changing column type directly
+    ALTER TABLE public.users
+    ALTER COLUMN id TYPE INT;
+    ```
+    
+    Instead, create a new column and migrate data:
+    
+    ```sql
+    -- Better approach
+    ALTER TABLE public.users
+    ADD COLUMN id_int INT;
+    
+    UPDATE public.users
+    SET id_int = id::INT;
+    ```
+  </Accordion>
+  
+  <Accordion title="Adding NOT NULL Without Defaults">
+    ```sql
+    -- Dangerous: Adding NOT NULL to existing column
+    ALTER TABLE public.users
+    ALTER COLUMN email SET NOT NULL;
+    ```
+    
+    Instead, set defaults first:
+    
+    ```sql
+    -- Better approach
+    UPDATE public.users
+    SET email = 'unknown@example.com'
+    WHERE email IS NULL;
+    
+    ALTER TABLE public.users
+    ALTER COLUMN email SET NOT NULL;
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Handling Large Data Migrations
+
+When migrating large amounts of data, use a batched approach to avoid locking the database for extended periods:
+
+```sql
+-- Create a function to migrate data in batches
+CREATE OR REPLACE FUNCTION migrate_data_in_batches()
+RETURNS void AS $$
+DECLARE
+    batch_size INT := 1000;
+    batch_count INT := 0;
+    total_rows INT;
+    processed_rows INT := 0;
+BEGIN
+    -- Get total count
+    SELECT COUNT(*) INTO total_rows FROM old_table;
+    
+    -- Process in batches
+    WHILE processed_rows < total_rows LOOP
+        -- Process one batch
+        WITH batch AS (
+            SELECT id
+            FROM old_table
+            ORDER BY id
+            LIMIT batch_size
+            OFFSET processed_rows
+            FOR UPDATE SKIP LOCKED
+        )
+        INSERT INTO new_table (id, data, transformed_field)
+        SELECT 
+            o.id, 
+            o.data, 
+            transform_function(o.field) -- Custom transformation
+        FROM old_table o
+        JOIN batch b ON o.id = b.id;
+        
+        -- Update progress
+        GET DIAGNOSTICS batch_count = ROW_COUNT;
+        processed_rows := processed_rows + batch_count;
+        
+        -- Log progress
+        RAISE NOTICE 'Processed % of % rows', processed_rows, total_rows;
+        
+        -- Commit batch
+        COMMIT;
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Execute the function
+SELECT migrate_data_in_batches();
+```
+
+## Testing Migrations
+
+Before deploying migrations to production, test them thoroughly:
+
+1. **Test on a copy of production data** - Use a database with similar data volume and patterns
+2. **Run automated tests** - Ensure your application works with the new schema
+3. **Measure performance impact** - Check if the migration affects query performance
+4. **Verify rollback procedures** - Ensure you can roll back if needed
+
+## Rollback Procedures
+
+If a migration needs to be rolled back:
+
+1. **Create a rollback migration** - Write a new migration that undoes the changes
+2. **Test the rollback** - Verify the rollback works correctly
+3. **Apply the rollback** - Run the rollback migration in production
+
+```sql
+-- Example rollback migration
+-- supabase/migrations/20230416092345_rollback_customer_notes.sql
+
+-- Drop policies
+DROP POLICY "Anyone can read customer notes" ON public.customer_notes;
+DROP POLICY "Note creators and admins can update notes" ON public.customer_notes;
+DROP POLICY "Note creators and admins can delete notes" ON public.customer_notes;
+
+-- Drop index
+DROP INDEX idx_customer_notes_customer_id;
+
+-- Drop table
+DROP TABLE public.customer_notes;
+```
+
+## Database Migration Checklist
+
+<Card title="Migration Checklist" icon="clipboard-check">
+  <CheckboxField id="backward" label="Maintains backward compatibility" />
+  <CheckboxField id="testable" label="Tested thoroughly" />
+  <CheckboxField id="performance" label="Performance impact assessed" />
+  <CheckboxField id="rollback" label="Rollback procedure tested" />
+  <CheckboxField id="documented" label="Changes documented" />
+  <CheckboxField id="reviewed" label="Reviewed by another developer" />
+  <CheckboxField id="approved" label="Approved by database administrator" />
+  <CheckboxField id="scheduled" label="Scheduled during low-traffic period" />
+</Card>
+
+## Resources
+
+- [Supabase Migration Documentation](https://supabase.com/docs/guides/database/migrations)
+- [PostgreSQL ALTER TABLE Documentation](https://www.postgresql.org/docs/current/sql-altertable.html)
+- [Database Migration Patterns](https://dzone.com/articles/database-migration-patterns)
+- [Zero-Downtime Deployments](https://www.paperplanes.de/2015/8/13/zero-downtime-database-migrations.html)

@@ -1,0 +1,1490 @@
+---
+title: API Endpoints
+description: Documentation for all Duraclim API endpoints and their usage
+icon: code
+---
+
+# API Endpoints
+
+This document provides comprehensive documentation for all API endpoints available in Duraclim's systems. Each endpoint is described with its purpose, parameters, response format, and example usage.
+
+<Frame>
+  <img src="/images/api-endpoints-overview.png" alt="API Endpoints Overview" className="rounded-lg" />
+</Frame>
+
+## Authentication
+
+All API requests require authentication. See our [Authentication Guide](/api/authentication) for details on obtaining and using authentication tokens.
+
+<Note>
+  All requests should include appropriate authentication headers as described in the Authentication Guide.
+</Note>
+
+## Base URLs
+
+Our APIs are deployed to different base URLs depending on the environment:
+
+| Environment | Base URL |
+|-------------|----------|
+| Production | `https://api.duraclim.com` |
+| Staging | `https://staging-api.duraclim.com` |
+| Development | `https://dev-api.duraclim.com` |
+
+## API Versioning
+
+Our APIs use URL versioning to maintain backward compatibility:
+
+- **v1** - First version of the API, current stable version
+- **v2** - Beta version with enhanced features (where available)
+
+Example: `https://api.duraclim.com/v1/clients`
+
+## Common Response Formats
+
+All API endpoints return responses in a standard format:
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "invoice_number": "INV-2023-10-123456",
+    "order_id": "ord_123456",
+    "customer": {
+      "id": "cust_123456789",
+      "name": "John Smith",
+      "email": "john.smith@example.com",
+      "address": {
+        "line1": "123 Main St",
+        "city": "Montreal",
+        "province": "QC",
+        "postal_code": "H1A 1A1"
+      }
+    },
+    "items": [
+      {
+        "description": "Standard Condo Cleaning",
+        "quantity": 1,
+        "unit_price": 299.99,
+        "subtotal": 299.99
+      },
+      {
+        "description": "Sanitization",
+        "quantity": 1,
+        "unit_price": 99.99,
+        "subtotal": 99.99
+      },
+      {
+        "description": "Dryer Vent Cleaning",
+        "quantity": 1,
+        "unit_price": 79.99,
+        "subtotal": 79.99
+      },
+      {
+        "description": "Extra Vents (2)",
+        "quantity": 1,
+        "unit_price": 20.00,
+        "subtotal": 20.00
+      },
+      {
+        "description": "Square Footage Adjustment",
+        "quantity": 1,
+        "unit_price": 15.00,
+        "subtotal": 15.00
+      }
+    ],
+    "subtotal": 514.97,
+    "tax": 77.25,
+    "total": 592.22,
+    "issue_date": "2023-10-27T12:45:00Z",
+    "due_date": "2023-11-26T12:45:00Z",
+    "status": "issued",
+    "payment_link": "https://payments.duraclim.com/inv-2023-10-123456"
+  }
+}
+```
+
+For PDF format, the response will be a PDF file with appropriate headers:
+
+```
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="invoice-ord_123456.pdf"
+```
+
+## Technician Endpoints
+
+### GET /v1/technicians
+
+List all technicians with optional filtering.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `status` | string | Filter by status (active, inactive, on_leave) |
+| `specialties` | string | Filter by specialties (comma-separated list) |
+| `search` | string | Search term to filter by name or email |
+
+**Example Request:**
+```bash
+curl -X GET "https://api.duraclim.com/v1/technicians?status=active&specialties=residential" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "tech_123456",
+      "name": "Robert Johnson",
+      "email": "robert.j@duraclim.com",
+      "phone": "+15145551234",
+      "status": "active",
+      "specialties": ["residential", "commercial"],
+      "created_at": "2023-01-15T08:30:00Z",
+      "updated_at": "2023-09-22T14:15:30Z"
+    },
+    {
+      "id": "tech_234567",
+      "name": "Sarah Williams",
+      "email": "sarah.w@duraclim.com",
+      "phone": "+15145556789",
+      "status": "active",
+      "specialties": ["residential", "condo"],
+      "created_at": "2023-02-10T09:45:00Z",
+      "updated_at": "2023-08-18T11:20:45Z"
+    }
+    // Additional technicians...
+  ]
+}
+```
+
+### GET /v1/technicians/:id
+
+Get a specific technician by ID.
+
+**URL Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | The technician ID |
+
+**Example Request:**
+```bash
+curl -X GET "https://api.duraclim.com/v1/technicians/tech_123456" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "tech_123456",
+    "name": "Robert Johnson",
+    "email": "robert.j@duraclim.com",
+    "phone": "+15145551234",
+    "status": "active",
+    "specialties": ["residential", "commercial"],
+    "schedule": {
+      "available_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+      "working_hours": {
+        "start": "08:00",
+        "end": "17:00"
+      },
+      "vacation_dates": [
+        {
+          "start": "2023-12-22T00:00:00Z",
+          "end": "2023-12-31T23:59:59Z"
+        }
+      ]
+    },
+    "created_at": "2023-01-15T08:30:00Z",
+    "updated_at": "2023-09-22T14:15:30Z"
+  }
+}
+```
+
+### GET /v1/technicians/:id/schedule
+
+Get a technician's schedule for a specific date range.
+
+**URL Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | The technician ID |
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `start_date` | string | **Required.** Start date (ISO 8601 format) |
+| `end_date` | string | **Required.** End date (ISO 8601 format) |
+
+**Example Request:**
+```bash
+curl -X GET "https://api.duraclim.com/v1/technicians/tech_123456/schedule?start_date=2023-10-23T00:00:00Z&end_date=2023-10-27T23:59:59Z" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "technician_id": "tech_123456",
+    "technician_name": "Robert Johnson",
+    "range": {
+      "start": "2023-10-23T00:00:00Z",
+      "end": "2023-10-27T23:59:59Z"
+    },
+    "available_slots": [
+      {
+        "date": "2023-10-23",
+        "slots": [
+          {
+            "start": "08:00",
+            "end": "10:00"
+          },
+          {
+            "start": "13:00",
+            "end": "15:00"
+          }
+        ]
+      },
+      {
+        "date": "2023-10-24",
+        "slots": []  // Fully booked
+      },
+      // Additional days...
+    ],
+    "assignments": [
+      {
+        "order_id": "ord_234567",
+        "customer_name": "Jane Doe",
+        "service_type": "Residential Cleaning",
+        "start": "2023-10-23T10:00:00Z",
+        "end": "2023-10-23T13:00:00Z",
+        "address": {
+          "line1": "456 Oak Ave",
+          "city": "Montreal",
+          "province": "QC",
+          "postal_code": "H2B 2B2"
+        }
+      },
+      // Additional assignments...
+    ]
+  }
+}
+```
+
+### POST /v1/technicians/:id/assignments
+
+Assign a job to a technician.
+
+**URL Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | The technician ID |
+
+**Request Body:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `order_id` | string | **Required.** The order ID to assign |
+| `start_time` | string | **Required.** Assignment start time (ISO 8601 format) |
+| `end_time` | string | **Required.** Assignment end time (ISO 8601 format) |
+| `notes` | string | Optional notes for the technician |
+
+**Example Request:**
+```bash
+curl -X POST "https://api.duraclim.com/v1/technicians/tech_123456/assignments" \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "order_id": "ord_345678",
+           "start_time": "2023-10-25T09:00:00Z",
+           "end_time": "2023-10-25T12:00:00Z",
+           "notes": "Customer has a dog, please call before arriving"
+         }'
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "assign_123456",
+    "technician_id": "tech_123456",
+    "order_id": "ord_345678",
+    "status": "assigned",
+    "start_time": "2023-10-25T09:00:00Z",
+    "end_time": "2023-10-25T12:00:00Z",
+    "notes": "Customer has a dog, please call before arriving",
+    "created_at": "2023-10-18T11:23:45Z",
+    "updated_at": "2023-10-18T11:23:45Z"
+  }
+}
+```
+
+## Analytics Endpoints
+
+### GET /v1/analytics/revenue
+
+Get revenue analytics for a specific date range.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `start_date` | string | **Required.** Start date (ISO 8601 format) |
+| `end_date` | string | **Required.** End date (ISO 8601 format) |
+| `group_by` | string | Grouping (day, week, month, year, default: day) |
+| `service_type` | string | Filter by service type |
+| `region` | string | Filter by region |
+
+**Example Request:**
+```bash
+curl -X GET "https://api.duraclim.com/v1/analytics/revenue?start_date=2023-01-01T00:00:00Z&end_date=2023-09-30T23:59:59Z&group_by=month" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "total": 284950.75,
+    "average": 31661.19,
+    "groups": [
+      {
+        "period": "2023-01",
+        "amount": 25678.50,
+        "orders": 42
+      },
+      {
+        "period": "2023-02",
+        "amount": 28495.25,
+        "orders": 48
+      },
+      // Additional months...
+    ],
+    "by_service_type": [
+      {
+        "service_type": "residential",
+        "amount": 142475.38,
+        "percentage": 50
+      },
+      {
+        "service_type": "commercial",
+        "amount": 85485.23,
+        "percentage": 30
+      },
+      {
+        "service_type": "condo",
+        "amount": 56990.14,
+        "percentage": 20
+      }
+    ],
+    "by_region": [
+      {
+        "region": "Montreal",
+        "amount": 199465.53,
+        "percentage": 70
+      },
+      {
+        "region": "Laval",
+        "amount": 42742.61,
+        "percentage": 15
+      },
+      {
+        "region": "South Shore",
+        "amount": 42742.61,
+        "percentage": 15
+      }
+    ]
+  }
+}
+```
+
+### GET /v1/analytics/sales
+
+Get sales analytics for a specific date range.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `start_date` | string | **Required.** Start date (ISO 8601 format) |
+| `end_date` | string | **Required.** End date (ISO 8601 format) |
+| `group_by` | string | Grouping (day, week, month, year, default: day) |
+| `salesperson_id` | string | Filter by salesperson ID |
+
+**Example Request:**
+```bash
+curl -X GET "https://api.duraclim.com/v1/analytics/sales?start_date=2023-01-01T00:00:00Z&end_date=2023-09-30T23:59:59Z&group_by=month" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "total_new_leads": 562,
+    "total_deals_won": 423,
+    "conversion_rate": 75.27,
+    "groups": [
+      {
+        "period": "2023-01",
+        "new_leads": 48,
+        "deals_won": 35,
+        "conversion_rate": 72.92
+      },
+      {
+        "period": "2023-02",
+        "new_leads": 52,
+        "deals_won": 41,
+        "conversion_rate": 78.85
+      },
+      // Additional months...
+    ],
+    "by_salesperson": [
+      {
+        "id": "sales_123456",
+        "name": "Michael Brown",
+        "new_leads": 187,
+        "deals_won": 146,
+        "conversion_rate": 78.07,
+        "revenue": 95642.25
+      },
+      {
+        "id": "sales_234567",
+        "name": "Amanda Garcia",
+        "new_leads": 174,
+        "deals_won": 129,
+        "conversion_rate": 74.14,
+        "revenue": 82635.72
+      },
+      // Additional salespeople...
+    ]
+  }
+}
+```
+
+### GET /v1/analytics/service
+
+Get service delivery analytics for a specific date range.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `start_date` | string | **Required.** Start date (ISO 8601 format) |
+| `end_date` | string | **Required.** End date (ISO 8601 format) |
+| `group_by` | string | Grouping (day, week, month, year, default: day) |
+| `service_type` | string | Filter by service type |
+| `technician_id` | string | Filter by technician ID |
+
+**Example Request:**
+```bash
+curl -X GET "https://api.duraclim.com/v1/analytics/service?start_date=2023-01-01T00:00:00Z&end_date=2023-09-30T23:59:59Z&group_by=month" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "total_jobs": 458,
+    "completed_jobs": 423,
+    "cancelled_jobs": 35,
+    "completion_rate": 92.36,
+    "average_duration": 145,  // minutes
+    "average_satisfaction": 4.7,  // out of 5
+    "groups": [
+      {
+        "period": "2023-01",
+        "total_jobs": 43,
+        "completed_jobs": 40,
+        "cancelled_jobs": 3,
+        "completion_rate": 93.02,
+        "average_duration": 148,
+        "average_satisfaction": 4.6
+      },
+      // Additional months...
+    ],
+    "by_service_type": [
+      {
+        "service_type": "residential",
+        "total_jobs": 229,
+        "average_duration": 135,
+        "average_satisfaction": 4.8
+      },
+      {
+        "service_type": "commercial",
+        "total_jobs": 137,
+        "average_duration": 180,
+        "average_satisfaction": 4.6
+      },
+      {
+        "service_type": "condo",
+        "total_jobs": 92,
+        "average_duration": 120,
+        "average_satisfaction": 4.7
+      }
+    ],
+    "by_technician": [
+      {
+        "id": "tech_123456",
+        "name": "Robert Johnson",
+        "completed_jobs": 102,
+        "average_duration": 138,
+        "average_satisfaction": 4.9
+      },
+      // Additional technicians...
+    ]
+  }
+}
+```
+
+## MapBox Integration Endpoints
+
+### GET /v1/mapbox/search
+
+Search for addresses using MapBox geocoding.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `query` | string | **Required.** Search query (address or location) |
+| `limit` | integer | Maximum number of results (default: 5) |
+| `country` | string | Limit results to country (default: ca) |
+
+**Example Request:**
+```bash
+curl -X GET "https://api.duraclim.com/v1/mapbox/search?query=1234+Rue+Sainte-Catherine+Montreal" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "results": [
+      {
+        "id": "address.12345",
+        "type": "address",
+        "place_name": "1234 Rue Sainte-Catherine O, Montréal, Québec H3G 1P1, Canada",
+        "coordinates": {
+          "longitude": -73.5758,
+          "latitude": 45.4986
+        },
+        "address": {
+          "line1": "1234 Rue Sainte-Catherine O",
+          "city": "Montréal",
+          "province": "Québec",
+          "postal_code": "H3G 1P1",
+          "country": "Canada"
+        }
+      },
+      // Additional results...
+    ]
+  }
+}
+```
+
+### GET /v1/mapbox/matrix
+
+Calculate a distance matrix between multiple locations.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `origins` | string | **Required.** Comma-separated list of origin coordinates (longitude,latitude) |
+| `destinations` | string | **Required.** Comma-separated list of destination coordinates (longitude,latitude) |
+
+**Example Request:**
+```bash
+curl -X GET "https://api.duraclim.com/v1/mapbox/matrix?origins=-73.5758,45.4986&destinations=-73.6423,45.5017,-73.5494,45.5236" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "distances": [
+      [0, 7.2, 5.8]  // Distance in kilometers
+    ],
+    "durations": [
+      [0, 18, 15]  // Duration in minutes
+    ]
+  }
+}
+```
+
+### GET /v1/mapbox/retrieve
+
+Retrieve location details for a set of coordinates.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `coordinates` | string | **Required.** Comma-separated coordinates (longitude,latitude) |
+
+**Example Request:**
+```bash
+curl -X GET "https://api.duraclim.com/v1/mapbox/retrieve?coordinates=-73.5758,45.4986" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "address": {
+      "line1": "1234 Rue Sainte-Catherine O",
+      "city": "Montréal",
+      "province": "Québec",
+      "postal_code": "H3G 1P1",
+      "country": "Canada"
+    },
+    "coordinates": {
+      "longitude": -73.5758,
+      "latitude": 45.4986
+    },
+    "place_type": ["address"],
+    "place_name": "1234 Rue Sainte-Catherine O, Montréal, Québec H3G 1P1, Canada"
+  }
+}
+```
+
+## Webhooks
+
+### GET /v1/webhooks
+
+List all webhooks configured for your account.
+
+**Example Request:**
+```bash
+curl -X GET "https://api.duraclim.com/v1/webhooks" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "wh_123456",
+      "url": "https://example.com/webhook/duraclim",
+      "events": ["order.created", "order.updated", "order.completed"],
+      "active": true,
+      "created_at": "2023-08-15T10:30:00Z",
+      "updated_at": "2023-08-15T10:30:00Z"
+    },
+    // Additional webhooks...
+  ]
+}
+```
+
+### POST /v1/webhooks
+
+Create a new webhook endpoint.
+
+**Request Body:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `url` | string | **Required.** The URL that will receive webhook events |
+| `events` | array | **Required.** Array of event types to subscribe to |
+| `description` | string | Optional description of the webhook |
+
+**Example Request:**
+```bash
+curl -X POST "https://api.duraclim.com/v1/webhooks" \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "url": "https://example.com/webhook/duraclim",
+           "events": ["customer.created", "customer.updated"],
+           "description": "Customer updates webhook"
+         }'
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "wh_234567",
+    "url": "https://example.com/webhook/duraclim",
+    "events": ["customer.created", "customer.updated"],
+    "description": "Customer updates webhook",
+    "active": true,
+    "secret": "whsec_abcdefghijklmnopqrstuvwxyz123456",
+    "created_at": "2023-10-19T14:25:30Z",
+    "updated_at": "2023-10-19T14:25:30Z"
+  }
+}
+```
+
+### DELETE /v1/webhooks/:id
+
+Delete a webhook.
+
+**URL Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | The webhook ID |
+
+**Example Request:**
+```bash
+curl -X DELETE "https://api.duraclim.com/v1/webhooks/wh_234567" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "wh_234567",
+    "deleted": true
+  }
+}
+```
+
+## Error Codes
+
+| Code | Description |
+|------|-------------|
+| `AUTHENTICATION_ERROR` | Authentication failed |
+| `AUTHORIZATION_ERROR` | User lacks permission for the requested action |
+| `INVALID_REQUEST` | Request is malformed or contains invalid data |
+| `RESOURCE_NOT_FOUND` | The requested resource does not exist |
+| `VALIDATION_ERROR` | Validation failed for the provided data |
+| `RATE_LIMIT_EXCEEDED` | Too many requests in a given amount of time |
+| `INTERNAL_ERROR` | An unexpected error occurred on the server |
+
+## Rate Limiting
+
+API requests are rate limited to prevent abuse. Current limits are:
+
+- 100 requests per minute per API key
+- 5,000 requests per day per API key
+
+Rate limit headers are included in all responses:
+
+```
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 1631022102
+```
+
+If you exceed the rate limit, you'll receive a 429 Too Many Requests response.
+
+## Additional Resources
+
+- [API Authentication](/api/authentication)
+- [API Integrations](/api/integrations)
+- [API Changelog](https://api.duraclim.com/changelog)
+- [Postman Collection](https://api.duraclim.com/postman)
+
+  "data": {
+    // Response data specific to the endpoint
+  },
+  "meta": {
+    // Metadata like pagination info (if applicable)
+  }
+}
+```
+
+**Error Response:**
+```json
+{
+  "success": false,
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Human-readable error message",
+    "details": {
+      // Additional error details (if available)
+    }
+  }
+}
+```
+
+## Health Check
+
+### GET /health
+
+Check the API health status.
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "version": "1.2.3",
+  "timestamp": "2024-01-15T12:34:56Z"
+}
+```
+
+## Customer Management Endpoints
+
+### GET /v1/customers
+
+List customers with optional filtering and pagination.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `page` | integer | Page number for pagination (default: 1) |
+| `limit` | integer | Number of items per page (default: 20, max: 100) |
+| `search` | string | Search term to filter by name, email, or phone |
+| `type` | string | Filter by customer type (residential, commercial, condo) |
+| `status` | string | Filter by status (active, inactive, pending) |
+
+**Example Request:**
+```bash
+curl -X GET "https://api.duraclim.com/v1/customers?page=1&limit=10&type=residential" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "cust_123456789",
+      "name": "John Smith",
+      "email": "john.smith@example.com",
+      "phone": "+15141234567",
+      "type": "residential",
+      "status": "active",
+      "address": {
+        "line1": "123 Main St",
+        "city": "Montreal",
+        "province": "QC",
+        "postal_code": "H1A 1A1"
+      },
+      "created_at": "2023-10-15T14:23:45Z",
+      "updated_at": "2023-10-15T14:23:45Z"
+    },
+    // Additional customers...
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 10,
+    "total": 42,
+    "pages": 5
+  }
+}
+```
+
+### GET /v1/customers/:id
+
+Get a specific customer by ID.
+
+**URL Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | The customer ID |
+
+**Example Request:**
+```bash
+curl -X GET "https://api.duraclim.com/v1/customers/cust_123456789" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "cust_123456789",
+    "name": "John Smith",
+    "email": "john.smith@example.com",
+    "phone": "+15141234567",
+    "type": "residential",
+    "status": "active",
+    "address": {
+      "line1": "123 Main St",
+      "city": "Montreal",
+      "province": "QC",
+      "postal_code": "H1A 1A1"
+    },
+    "notes": "Prefers afternoon appointments",
+    "created_at": "2023-10-15T14:23:45Z",
+    "updated_at": "2023-10-15T14:23:45Z"
+  }
+}
+```
+
+### POST /v1/customers
+
+Create a new customer.
+
+**Request Body:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | **Required.** Customer's full name |
+| `email` | string | Customer's email address |
+| `phone` | string | **Required.** Customer's phone number (E.164 format) |
+| `type` | string | **Required.** Customer type (residential, commercial, condo) |
+| `address` | object | Customer's address information |
+| `notes` | string | Additional notes about the customer |
+
+**Example Request:**
+```bash
+curl -X POST "https://api.duraclim.com/v1/customers" \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "name": "Jane Doe",
+           "email": "jane.doe@example.com",
+           "phone": "+15149876543",
+           "type": "residential",
+           "address": {
+             "line1": "456 Oak Ave",
+             "city": "Montreal",
+             "province": "QC",
+             "postal_code": "H2B 2B2"
+           },
+           "notes": "Referred by John Smith"
+         }'
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "cust_987654321",
+    "name": "Jane Doe",
+    "email": "jane.doe@example.com",
+    "phone": "+15149876543",
+    "type": "residential",
+    "status": "active",
+    "address": {
+      "line1": "456 Oak Ave",
+      "city": "Montreal",
+      "province": "QC",
+      "postal_code": "H2B 2B2"
+    },
+    "notes": "Referred by John Smith",
+    "created_at": "2023-10-17T09:12:34Z",
+    "updated_at": "2023-10-17T09:12:34Z"
+  }
+}
+```
+
+### PUT /v1/customers/:id
+
+Update an existing customer.
+
+**URL Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | The customer ID |
+
+**Request Body:**
+Include only the fields you want to update.
+
+**Example Request:**
+```bash
+curl -X PUT "https://api.duraclim.com/v1/customers/cust_987654321" \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "phone": "+15149876543",
+           "address": {
+             "line1": "789 Pine St",
+             "city": "Montreal",
+             "province": "QC",
+             "postal_code": "H3C 3C3"
+           }
+         }'
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "cust_987654321",
+    "name": "Jane Doe",
+    "email": "jane.doe@example.com",
+    "phone": "+15149876543",
+    "type": "residential",
+    "status": "active",
+    "address": {
+      "line1": "789 Pine St",
+      "city": "Montreal",
+      "province": "QC",
+      "postal_code": "H3C 3C3"
+    },
+    "notes": "Referred by John Smith",
+    "created_at": "2023-10-17T09:12:34Z",
+    "updated_at": "2023-10-17T10:45:12Z"
+  }
+}
+```
+
+### DELETE /v1/customers/:id
+
+Delete a customer (marks as inactive).
+
+**URL Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | The customer ID |
+
+**Example Request:**
+```bash
+curl -X DELETE "https://api.duraclim.com/v1/customers/cust_987654321" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "cust_987654321",
+    "status": "inactive",
+    "updated_at": "2023-10-18T16:30:45Z"
+  }
+}
+```
+
+## Service Management Endpoints
+
+### GET /v1/services
+
+List all available services.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `category` | string | Filter by category (casa, condo, commercial, aircommun) |
+| `active` | boolean | Filter by active status (default: true) |
+
+**Example Request:**
+```bash
+curl -X GET "https://api.duraclim.com/v1/services?category=condo" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "svc_123456",
+      "name": "Standard Condo Cleaning",
+      "description": "Complete air duct cleaning for condominium units",
+      "category": "condo",
+      "base_price": 299.99,
+      "is_active": true,
+      "created_at": "2023-09-01T10:00:00Z",
+      "updated_at": "2023-09-01T10:00:00Z"
+    },
+    {
+      "id": "svc_234567",
+      "name": "Premium Condo Cleaning",
+      "description": "Enhanced air duct cleaning with sanitization for condominium units",
+      "category": "condo",
+      "base_price": 399.99,
+      "is_active": true,
+      "created_at": "2023-09-01T10:00:00Z",
+      "updated_at": "2023-09-01T10:00:00Z"
+    }
+    // Additional services...
+  ]
+}
+```
+
+### GET /v1/services/:id
+
+Get a specific service by ID.
+
+**URL Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | The service ID |
+
+**Example Request:**
+```bash
+curl -X GET "https://api.duraclim.com/v1/services/svc_123456" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "svc_123456",
+    "name": "Standard Condo Cleaning",
+    "description": "Complete air duct cleaning for condominium units",
+    "category": "condo",
+    "base_price": 299.99,
+    "is_active": true,
+    "options": [
+      {
+        "id": "opt_1",
+        "name": "Sanitization",
+        "description": "Antibacterial and antifungal treatment",
+        "price": 99.99
+      },
+      {
+        "id": "opt_2",
+        "name": "Dryer Vent Cleaning",
+        "description": "Cleaning of dryer vent duct",
+        "price": 79.99
+      }
+    ],
+    "created_at": "2023-09-01T10:00:00Z",
+    "updated_at": "2023-09-01T10:00:00Z"
+  }
+}
+```
+
+### POST /v1/services/calculate-price
+
+Calculate the price for a service with specific options.
+
+**Request Body:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `service_id` | string | **Required.** The service ID |
+| `options` | object | Configuration options affecting price |
+
+**Example Request:**
+```bash
+curl -X POST "https://api.duraclim.com/v1/services/calculate-price" \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "service_id": "svc_123456",
+           "options": {
+             "vents": 12,
+             "square_footage": 1800,
+             "additional_services": ["opt_1", "opt_2"]
+           }
+         }'
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "base_price": 299.99,
+    "options_price": 179.98,
+    "adjustments": [
+      {
+        "name": "Extra Vents (2)",
+        "amount": 20.00
+      },
+      {
+        "name": "Square Footage Adjustment",
+        "amount": 15.00
+      }
+    ],
+    "subtotal": 514.97,
+    "tax": 77.25,
+    "total": 592.22
+  }
+}
+```
+
+## Order Management Endpoints
+
+### GET /v1/orders
+
+List orders with filtering and pagination.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `page` | integer | Page number for pagination (default: 1) |
+| `limit` | integer | Number of items per page (default: 20, max: 100) |
+| `customer_id` | string | Filter by customer ID |
+| `status` | string | Filter by status (pending, scheduled, completed, cancelled) |
+| `date_from` | string | Filter by date range start (ISO 8601 format) |
+| `date_to` | string | Filter by date range end (ISO 8601 format) |
+
+**Example Request:**
+```bash
+curl -X GET "https://api.duraclim.com/v1/orders?status=scheduled&date_from=2023-10-01T00:00:00Z&date_to=2023-10-31T23:59:59Z" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "ord_123456",
+      "customer_id": "cust_123456789",
+      "customer_name": "John Smith",
+      "status": "scheduled",
+      "total_amount": 592.22,
+      "scheduled_date": "2023-10-25T14:00:00Z",
+      "created_at": "2023-10-15T16:20:45Z",
+      "updated_at": "2023-10-15T16:20:45Z"
+    },
+    // Additional orders...
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 8,
+    "pages": 1
+  }
+}
+```
+
+### GET /v1/orders/:id
+
+Get a specific order by ID.
+
+**URL Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | The order ID |
+
+**Example Request:**
+```bash
+curl -X GET "https://api.duraclim.com/v1/orders/ord_123456" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "ord_123456",
+    "customer_id": "cust_123456789",
+    "customer_name": "John Smith",
+    "status": "scheduled",
+    "total_amount": 592.22,
+    "scheduled_date": "2023-10-25T14:00:00Z",
+    "address": {
+      "line1": "123 Main St",
+      "city": "Montreal",
+      "province": "QC",
+      "postal_code": "H1A 1A1"
+    },
+    "items": [
+      {
+        "service_id": "svc_123456",
+        "service_name": "Standard Condo Cleaning",
+        "quantity": 1,
+        "unit_price": 299.99,
+        "options": [
+          {
+            "id": "opt_1",
+            "name": "Sanitization",
+            "price": 99.99
+          },
+          {
+            "id": "opt_2",
+            "name": "Dryer Vent Cleaning",
+            "price": 79.99
+          }
+        ],
+        "adjustments": [
+          {
+            "name": "Extra Vents (2)",
+            "amount": 20.00
+          },
+          {
+            "name": "Square Footage Adjustment",
+            "amount": 15.00
+          }
+        ],
+        "total_price": 514.97
+      }
+    ],
+    "notes": "Customer prefers afternoon appointments",
+    "created_at": "2023-10-15T16:20:45Z",
+    "updated_at": "2023-10-15T16:20:45Z"
+  }
+}
+```
+
+### POST /v1/orders
+
+Create a new order.
+
+**Request Body:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `customer_id` | string | **Required.** The customer ID |
+| `address_id` | string | The address ID (if different from default) |
+| `items` | array | **Required.** Array of order items |
+| `scheduled_date` | string | Requested service date (ISO 8601 format) |
+| `notes` | string | Additional notes for the order |
+
+**Example Request:**
+```bash
+curl -X POST "https://api.duraclim.com/v1/orders" \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "customer_id": "cust_123456789",
+           "items": [
+             {
+               "service_id": "svc_123456",
+               "quantity": 1,
+               "options": {
+                 "vents": 12,
+                 "square_footage": 1800,
+                 "additional_services": ["opt_1", "opt_2"]
+               }
+             }
+           ],
+           "scheduled_date": "2023-10-25T14:00:00Z",
+           "notes": "Customer prefers afternoon appointments"
+         }'
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "ord_123456",
+    "customer_id": "cust_123456789",
+    "status": "pending",
+    "total_amount": 592.22,
+    "scheduled_date": "2023-10-25T14:00:00Z",
+    "items": [
+      {
+        "service_id": "svc_123456",
+        "service_name": "Standard Condo Cleaning",
+        "quantity": 1,
+        "unit_price": 299.99,
+        "options": { /* options details */ },
+        "adjustments": [ /* adjustments details */ ],
+        "total_price": 514.97
+      }
+    ],
+    "notes": "Customer prefers afternoon appointments",
+    "created_at": "2023-10-15T16:20:45Z",
+    "updated_at": "2023-10-15T16:20:45Z"
+  }
+}
+```
+
+### PUT /v1/orders/:id
+
+Update an existing order.
+
+**URL Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | The order ID |
+
+**Request Body:**
+Include only the fields you want to update.
+
+**Example Request:**
+```bash
+curl -X PUT "https://api.duraclim.com/v1/orders/ord_123456" \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "scheduled_date": "2023-10-27T10:00:00Z",
+           "notes": "Updated: Customer now prefers morning appointments"
+         }'
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "ord_123456",
+    "scheduled_date": "2023-10-27T10:00:00Z",
+    "notes": "Updated: Customer now prefers morning appointments",
+    "updated_at": "2023-10-16T09:15:30Z"
+  }
+}
+```
+
+### POST /v1/orders/:id/status
+
+Update the status of an order.
+
+**URL Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | The order ID |
+
+**Request Body:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | string | **Required.** New status (pending, scheduled, in_progress, completed, cancelled) |
+| `notes` | string | Optional notes about the status change |
+
+**Example Request:**
+```bash
+curl -X POST "https://api.duraclim.com/v1/orders/ord_123456/status" \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "status": "completed",
+           "notes": "Service completed as scheduled"
+         }'
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "ord_123456",
+    "status": "completed",
+    "completed_date": "2023-10-27T12:45:00Z",
+    "notes": "Service completed as scheduled",
+    "updated_at": "2023-10-27T12:45:00Z"
+  }
+}
+```
+
+

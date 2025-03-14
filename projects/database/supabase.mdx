@@ -1,0 +1,801 @@
+---
+title: Supabase Integration
+description: Comprehensive guide to Duraclim's Supabase implementation and usage
+icon: database
+---
+
+# Supabase Integration
+
+Duraclim uses [Supabase](https://supabase.com/) as our primary database and backend-as-a-service platform. This document provides a comprehensive overview of our Supabase setup, best practices, and integration patterns.
+
+<Frame>
+  <img src="/images/supabase-architecture.png" alt="Supabase Architecture" className="rounded-lg" />
+</Frame>
+
+## Supabase Overview
+
+Supabase provides us with:
+
+- **PostgreSQL Database** - Enterprise-grade relational database
+- **Authentication** - User management and authentication
+- **Storage** - File storage and management
+- **Realtime** - Realtime subscriptions
+- **Edge Functions** - Serverless functions
+- **Row-Level Security** - Fine-grained access control
+
+## Project Structure
+
+We maintain separate Supabase projects for each environment:
+
+- **Development** - For local development and testing
+- **Staging** - For pre-production testing
+- **Production** - For live applications
+
+### Environment Configuration
+
+```typescript
+// Path: lib/supabase/client.ts
+import { createBrowserClient } from '@supabase/ssr'
+
+export const createClient = () => {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
+```
+
+## Authentication Setup
+
+Supabase handles our authentication needs with various methods:
+
+<AccordionGroup>
+  <Accordion title="Email/Password Authentication">
+    The primary authentication method for most users:
+    
+    ```typescript
+    // Sign up a new user
+    const { data, error } = await supabase.auth.signUp({
+      email: 'user@example.com',
+      password: 'securepassword123',
+      options: {
+        data: {
+          first_name: 'John',
+          last_name: 'Doe',
+        }
+      }
+    })
+    
+    // Sign in an existing user
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: 'user@example.com',
+      password: 'securepassword123'
+    })
+    ```
+  </Accordion>
+  
+  <Accordion title="Google OAuth">
+    We also support Google sign-in:
+    
+    ```typescript
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`
+      }
+    })
+    ```
+  </Accordion>
+  
+  <Accordion title="Magic Link">
+    For password-less authentication:
+    
+    ```typescript
+    const { data, error } = await supabase.auth.signInWithOtp({
+      email: 'user@example.com',
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`
+      }
+    })
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Auth Configuration
+
+Our Supabase authentication is configured with the following settings:
+
+- Confirm emails on sign-up
+- 24-hour session duration
+- 1-week JWT refresh token
+- Restricted email domains (for internal applications)
+- Custom email templates for authentication emails
+
+## Database Schema
+
+Our Supabase database schema is organized around several key tables:
+
+<AccordionGroup>
+  <Accordion title="auth.users">
+    The primary users table managed by Supabase Auth.
+    
+    ```sql
+    -- This table is managed by Supabase Auth
+    -- Referenced via auth.users()
+    ```
+  </Accordion>
+  
+  <Accordion title="public.profiles">
+    Extended user profile information.
+    
+    ```sql
+    CREATE TABLE public.profiles (
+      id UUID PRIMARY KEY REFERENCES auth.users(id),
+      first_name TEXT,
+      last_name TEXT,
+      avatar_url TEXT,
+      position TEXT,
+      department TEXT,
+      phone_number TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    
+    -- Create trigger to create profile on user creation
+    CREATE OR REPLACE FUNCTION public.handle_new_user()
+    RETURNS TRIGGER AS $$
+    BEGIN
+      INSERT INTO public.profiles (id)
+      VALUES (NEW.id);
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql SECURITY DEFINER;
+    
+    CREATE TRIGGER on_auth_user_created
+      AFTER INSERT ON auth.users
+      FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+    ```
+  </Accordion>
+  
+  <Accordion title="Role-Based Access Control">
+    Tables for managing user roles and permissions:
+    
+    ```sql
+    CREATE TABLE public.user_roles (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+      role TEXT NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      
+      CONSTRAINT unique_user_role UNIQUE (user_id, role)
+    );
+    
+    -- Create index for efficient role lookups
+    CREATE INDEX idx_user_roles_user_id ON public.user_roles (user_id);
+    CREATE INDEX idx_user_roles_role ON public.user_roles (role);
+    ```
+  </Accordion>
+  
+  <Accordion title="Business Domain Tables">
+    Tables for business-specific data:
+    
+    ```sql
+    -- Example customer table
+    CREATE TABLE public.customers (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      address JSONB,
+      type TEXT CHECK (type IN ('residential', 'commercial', 'condo')),
+      status TEXT DEFAULT 'active',
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    
+    -- Example services table
+    CREATE TABLE public.services (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      category TEXT NOT NULL,
+      base_price DECIMAL(10, 2) NOT NULL,
+      is_active BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Row-Level Security (RLS)
+
+We implement Row-Level Security to control data access at the database level:
+
+### Basic RLS Pattern
+
+```sql
+-- Enable RLS
+ALTER TABLE public.table_name ENABLE ROW LEVEL SECURITY;
+
+-- Create policies
+CREATE POLICY "Users can view their own data"
+  ON public.table_name
+  FOR SELECT
+  USING (auth.uid() = user_id);
+  
+CREATE POLICY "Users can update their own data"
+  ON public.table_name
+  FOR UPDATE
+  USING (auth.uid() = user_id);
+```
+
+### Role-Based RLS
+
+```sql
+-- Enable RLS
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+
+-- Admins can do everything
+CREATE POLICY "Admins have full access to customers"
+  ON public.customers
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.user_roles
+      WHERE user_id = auth.uid() AND role = 'admin'
+    )
+  );
+
+-- Sales reps can see all customers but only update their own
+CREATE POLICY "Sales can view all customers"
+  ON public.customers
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.user_roles
+      WHERE user_id = auth.uid() AND role = 'sales'
+    )
+  );
+
+CREATE POLICY "Sales can update their own customers"
+  ON public.customers
+  FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.user_roles
+      WHERE user_id = auth.uid() AND role = 'sales'
+    ) AND
+    created_by = auth.uid()
+  );
+```
+
+### Custom RLS Helper Functions
+
+We've created custom helper functions for more complex RLS needs:
+
+```sql
+-- Function to check if user has permission
+CREATE OR REPLACE FUNCTION public.has_permission(permission_name TEXT)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1
+    FROM public.user_roles ur
+    JOIN public.role_permissions rp ON ur.role = rp.role
+    JOIN public.permissions p ON rp.permission_id = p.id
+    WHERE ur.user_id = auth.uid() AND p.name = permission_name
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Use in policy
+CREATE POLICY "Users with permission can edit customers"
+  ON public.customers
+  FOR UPDATE
+  USING (has_permission('edit_customers'));
+```
+
+## Database Functions
+
+We use PostgreSQL functions for complex operations:
+
+### Utility Functions
+
+```sql
+-- Function to get user roles
+CREATE OR REPLACE FUNCTION get_user_roles(user_id UUID)
+RETURNS TABLE (role TEXT) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT ur.role
+  FROM public.user_roles ur
+  WHERE ur.user_id = get_user_roles.user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to check if user is admin
+CREATE OR REPLACE FUNCTION is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_id = auth.uid() AND role = 'admin'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+### Business Logic Functions
+
+```sql
+-- Function to calculate service price
+CREATE OR REPLACE FUNCTION calculate_service_price(
+  service_id UUID,
+  options JSONB
+)
+RETURNS DECIMAL AS $$
+DECLARE
+  base_price DECIMAL;
+  final_price DECIMAL;
+BEGIN
+  -- Get the base price
+  SELECT s.base_price INTO base_price
+  FROM public.services s
+  WHERE s.id = calculate_service_price.service_id;
+  
+  -- Start with the base price
+  final_price := base_price;
+  
+  -- Apply modifiers based on options
+  IF options ? 'vents' THEN
+    final_price := final_price + (options->>'vents')::int * 5;
+  END IF;
+  
+  IF options ? 'square_footage' THEN
+    final_price := final_price + ((options->>'square_footage')::int - 1500) / 100 * 2;
+  END IF;
+  
+  RETURN final_price;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+## Supabase Storage
+
+We use Supabase Storage for file management:
+
+### Storage Buckets
+
+We've set up the following storage buckets:
+
+- `public` - Publicly accessible files (marketing images, etc.)
+- `private` - Private files (user uploads, documents, etc.)
+- `avatars` - User profile pictures
+
+### Storage Security
+
+Each bucket has specific security rules:
+
+```sql
+-- Public bucket: anyone can view, only authenticated users can upload
+CREATE POLICY "Public Access"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'public');
+
+CREATE POLICY "Auth Upload"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'public' AND auth.role() = 'authenticated');
+
+-- Private bucket: only owners can access their files
+CREATE POLICY "Owner Only"
+  ON storage.objects
+  USING (
+    bucket_id = 'private' 
+    AND owner = auth.uid()
+  );
+
+-- Avatars bucket: anyone can view, only owners can modify
+CREATE POLICY "Avatar View Public"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'avatars');
+
+CREATE POLICY "Avatar Owner Upload"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'avatars' 
+    AND owner = auth.uid()
+    AND (storage.foldername(name))[1] = auth.uid()::text
+  );
+```
+
+### File Upload Example
+
+```typescript
+// Upload a file to Supabase Storage
+const uploadAvatar = async (file: File, userId: string) => {
+  const fileExt = file.name.split('.').pop();
+  const filePath = `${userId}/${Math.random().toString(36).slice(2)}.${fileExt}`;
+  
+  const { data, error } = await supabase.storage
+    .from('avatars')
+    .upload(filePath, file, {
+      upsert: true,
+      contentType: file.type
+    });
+    
+  if (error) {
+    throw error;
+  }
+  
+  // Get public URL
+  const { data: { publicUrl } } = supabase.storage
+    .from('avatars')
+    .getPublicUrl(filePath);
+    
+  return publicUrl;
+};
+```
+
+## Realtime Subscriptions
+
+We use Supabase Realtime for live updates:
+
+### Enabling Realtime
+
+```sql
+-- Enable realtime for specific tables
+ALTER publication supabase_realtime ADD TABLE public.orders;
+ALTER publication supabase_realtime ADD TABLE public.notifications;
+```
+
+### Client-Side Subscription
+
+```typescript
+// Subscribe to real-time updates
+const subscribeToOrders = (userId: string, onUpdate: (order: Order) => void) => {
+  const subscription = supabase
+    .channel('public:orders')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'orders',
+        filter: `customer_id=eq.${userId}`
+      },
+      (payload) => {
+        onUpdate(payload.new as Order);
+      }
+    )
+    .subscribe();
+    
+  // Return unsubscribe function
+  return () => {
+    supabase.removeChannel(subscription);
+  };
+};
+```
+
+## Edge Functions
+
+We use Supabase Edge Functions for serverless functionality:
+
+### Creating an Edge Function
+
+```typescript
+// Path: supabase/functions/process-payment/index.ts
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+  
+  try {
+    // Get the request body
+    const { amount, currency, customerId, paymentMethodId } = await req.json()
+    
+    // Create Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    const supabase = createClient(supabaseUrl, supabaseKey)
+    
+    // Process payment (in a real function, this would call a payment processor API)
+    const paymentResult = await processPayment(amount, currency, paymentMethodId)
+    
+    // Record the payment in the database
+    const { data, error } = await supabase
+      .from('payments')
+      .insert({
+        customer_id: customerId,
+        amount,
+        currency,
+        status: paymentResult.status,
+        payment_id: paymentResult.id
+      })
+      .select()
+      .single()
+      
+    if (error) throw error
+    
+    // Return the payment result
+    return new Response(
+      JSON.stringify({ success: true, payment: data }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200 
+      }
+    )
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ success: false, error: error.message }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400 
+      }
+    )
+  }
+})
+```
+
+### Deploying Edge Functions
+
+```bash
+# Deploy an edge function
+supabase functions deploy process-payment --project-ref your-project-ref
+
+# Set environment variables for the function
+supabase secrets set --env-file ./supabase/.env --project-ref your-project-ref
+```
+
+### Invoking Edge Functions
+
+```typescript
+// Client-side invocation
+const { data, error } = await supabase.functions.invoke('process-payment', {
+  body: {
+    amount: 1000,
+    currency: 'usd',
+    customerId: 'cust_123',
+    paymentMethodId: 'pm_456'
+  }
+})
+```
+
+## Webhooks
+
+We use Supabase database webhooks to trigger actions in response to database changes:
+
+### Setting Up Webhooks
+
+```sql
+-- Create a webhook that triggers when a new order is created
+SELECT supabase_functions.http_request(
+  'https://hooks.zapier.com/hooks/catch/123456/abcdef/',
+  'POST',
+  '{"Content-Type": "application/json"}',
+  '{"event_type": "new_order", "order_id": "' || NEW.id || '"}',
+  1000
+) FROM public.orders
+WHERE status = 'new';
+```
+
+## Integrating with Next.js
+
+We integrate Supabase with our Next.js applications using the Supabase JavaScript client:
+
+### Server-Side Rendering
+
+```typescript
+// Path: lib/supabase/server.ts
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+
+export function createClient() {
+  const cookieStore = cookies()
+  
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name) {
+          return cookieStore.get(name)?.value
+        },
+        set(name, value, options) {
+          cookieStore.set(name, value, options)
+        },
+        remove(name, options) {
+          cookieStore.set(name, '', options)
+        }
+      }
+    }
+  )
+}
+```
+
+### Client-Side Usage
+
+```typescript
+// Path: lib/supabase/client.ts
+import { createBrowserClient } from '@supabase/ssr'
+
+export const createClient = () => {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
+```
+
+### Next.js App Router Data Fetching
+
+```typescript
+// Path: app/[locale]/dashboard/page.tsx
+import { createClient } from '@/lib/supabase/server'
+
+export default async function DashboardPage() {
+  const supabase = createClient()
+  
+  // Fetch user data
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    redirect('/login')
+  }
+  
+  // Fetch dashboard data
+  const { data: dashboardData } = await supabase
+    .from('dashboard_stats')
+    .select('*')
+    .eq('user_id', user.id)
+    .single()
+    
+  return (
+    <div>
+      <h1>Dashboard</h1>
+      <pre>{JSON.stringify(dashboardData, null, 2)}</pre>
+    </div>
+  )
+}
+```
+
+## Working with Supabase Studio
+
+Supabase Studio provides a graphical interface for managing your database:
+
+<AccordionGroup>
+  <Accordion title="Table Editor">
+    The Table Editor allows you to:
+    
+    - Create and edit tables
+    - Add and modify columns
+    - Create relationships between tables
+    - Manage indexes and constraints
+    - View and edit data
+  </Accordion>
+  
+  <Accordion title="SQL Editor">
+    The SQL Editor allows you to:
+    
+    - Write and execute SQL queries
+    - Save and share queries
+    - Export results as CSV or JSON
+    - View query execution plans
+  </Accordion>
+  
+  <Accordion title="Authentication">
+    The Authentication section allows you to:
+    
+    - Manage users
+    - Configure auth providers
+    - Edit email templates
+    - View authentication logs
+  </Accordion>
+  
+  <Accordion title="Storage">
+    The Storage section allows you to:
+    
+    - Create and manage buckets
+    - Upload and manage files
+    - Configure bucket policies
+    - View storage usage
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Database Design">
+    - Use UUID primary keys for easier distribution
+    - Include created_at and updated_at timestamps on all tables
+    - Use JSONB for semi-structured data
+    - Create indexes for frequently queried columns
+    - Use foreign key constraints to maintain data integrity
+  </Accordion>
+  
+  <Accordion title="Security">
+    - Always enable Row-Level Security (RLS) for tables
+    - Create explicit policies for all operations
+    - Use service role keys only in secure environments
+    - Never expose service role keys in client-side code
+    - Validate input data before inserting into the database
+  </Accordion>
+  
+  <Accordion title="Performance">
+    - Create appropriate indexes for queries
+    - Use pagination for large result sets
+    - Optimize queries using EXPLAIN ANALYZE
+    - Use materialized views for complex, frequently-accessed data
+    - Monitor query performance and optimize slow queries
+  </Accordion>
+  
+  <Accordion title="Authentication">
+    - Use appropriate auth providers for your needs
+    - Customize email templates for brand consistency
+    - Implement role-based access control
+    - Set reasonable session durations
+    - Use refresh tokens for longer sessions
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting Common Issues
+
+<AccordionGroup>
+  <Accordion title="Authentication Issues">
+    **Problem:** Users can't log in or sessions expire unexpectedly
+    
+    **Solutions:**
+    - Check if the user's email is confirmed
+    - Verify that cookies are being properly stored
+    - Check for CORS issues
+    - Ensure your Supabase URL and API keys are correct
+  </Accordion>
+  
+  <Accordion title="Permission Errors">
+    **Problem:** Users receive "permission denied" errors
+    
+    **Solutions:**
+    - Check RLS policies for the table
+    - Verify the user has the correct role
+    - Ensure the user is authenticated
+    - Look for conflicts between policies
+  </Accordion>
+  
+  <Accordion title="Performance Issues">
+    **Problem:** Queries are slow or timeouts occur
+    
+    **Solutions:**
+    - Check for missing indexes
+    - Review query plans with EXPLAIN ANALYZE
+    - Implement pagination for large result sets
+    - Consider denormalizing frequently accessed data
+  </Accordion>
+  
+  <Accordion title="Realtime Issues">
+    **Problem:** Realtime subscriptions not working
+    
+    **Solutions:**
+    - Ensure the table is added to the realtime publication
+    - Check that the client has the correct subscription
+    - Verify the filter conditions
+    - Check for network issues or proxies
+  </Accordion>
+</AccordionGroup>
+
+## Resources
+
+- [Supabase Documentation](https://supabase.com/docs)
+- [Supabase JavaScript Client](https://supabase.com/docs/reference/javascript/introduction)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [Next.js Supabase Integration](https://supabase.com/docs/guides/auth/auth-helpers/nextjs)
+- [Supabase Edge Functions](https://supabase.com/docs/guides/functions)
+- [Supabase Storage](https://supabase.com/docs/guides/storage)

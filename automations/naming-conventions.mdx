@@ -1,0 +1,150 @@
+---
+title: Automation Naming Conventions
+description: Consistent naming practices for automation workflows and steps
+icon: tag
+---
+
+# Automation Naming Conventions
+
+Our team relies on Zapier and Pabbly to automate workflows across different apps and services. Clear, consistent naming helps us:
+
+* Understand where data comes from and where it's going.
+* Reduce confusion when onboarding new team members.
+* Make it easier to review, update, or troubleshoot automations.
+
+## Automation Naming Conventions
+
+<Note>
+  The following guide uses Zapier as a reference for ease of explanation. All principles outlined here apply equally to Zapier, Pabbly and Pipedrive automations.
+</Note>
+
+A good rule of thumb is to use a **Source → Action/Outcome** structure (or Source → Destination).
+This immediately tells you (and anyone else looking at the Zap) what the Zap is doing and where the data is flowing.
+
+### Format Example
+
+`[Team / Department] - [Source/Trigger → Destination] - [Short Purpose]`
+
+* **Team / Department:** Helps identify ownership (e.g., Marketing, Sales, Finance).
+* **Source → Destination:** Makes it obvious which apps the Zap connects (e.g., Pipedrive → Slack).
+* **Short Purpose:** Explains what's happening (e.g., "Send New Lead Notification").
+
+### Sample Names
+
+* Marketing - Pipedrive → Slack - New Lead Notification
+* Finance - Square → Xero - Sync Invoices
+* Condo - Calendly → Google Sheets - Add Row For New Booking
+
+<Tip>Keep names under 60 characters if possible to avoid truncation in the Zapier interface.</Tip>
+
+## Step Naming Conventions
+
+Inside each automation, you'll have multiple steps (the Trigger step and subsequent Actions).
+By default, Zapier and Pabbly will name these based on the app and action, but you should edit them for clarity.
+
+### Format Example
+
+`1. New Booking in Calendly`
+
+`2. Only Continue If Not A Reschedule`
+
+`3. Convert Phone Number To E.164 Format`
+
+`4. Add Row to 'Condo bookings' Sheet`
+
+### Identify the Purpose
+
+**For triggers:** "[What the trigger does]".
+> _Example : New Job Completed in Jobber_
+
+**For actions:** "[What the action does]".
+> _Example : Send Slack message To 'it-testing' channel_
+
+**For filters/paths:** "Only continue if [Condition]" (Filter) or "Split on [Condition]" (Paths).
+> _Example : Only continue if Email exists | Split on Job Source_
+
+**For formatting steps:** "[What the formatting does]".
+> _Example : Format completion date to ISO 8601 format_
+
+**For delays:** "[Wait for x]" or "[Wait until x]".
+> _Example : Delay for 15 minutes_
+
+**For API requests:** "[Method] - [What the request does]" (Possible methods include GET, POST, PUT, PATCH or DELETE).
+> _Example : POST - Create Draft Invoice in Square_
+
+### Use a Short, Action-Oriented Description
+
+Instead of the default _"Google Sheets - Create Spreadsheet Row"_, aim for a more descriptive name such as _"Create new lead row in 'Leads Sheet'"_.
+This makes it easier to see at a glance what the step is doing without having to open it.
+
+## General Best Practices
+
+### Verb Tense
+
+Use verb-based actions ("Update," "Create," "Send") instead of noun-based descriptions ("Data Update," "New Record Creation").
+
+Example : 
+
+> ✅ Add New Row in "Dispatch KPI" sheet
+
+> ❌ Row Creation in "Dispatch KPI" sheet
+
+### Use Common Abbreviations
+
+Refer to the [Glossary](/glossary) page for our team's common abbreviations.
+
+### Special Cases
+
+When in doubt or when naming a complex automation/step, ask yourself the question: "Can a teammate understand the purpose of this automation/step without having to open it?"_. If the answer is no, you should generally try to find a better name.
+
+## Example
+
+### Zap before applying guidelines
+
+❌ Unclear Zap name
+
+❌ Unclear conditions on the filter
+
+❌ Unclear condition on the path… what is it that we want to be English?  
+
+❌ Unclear action… are we just creating an email as a draft? What's the purpose?
+
+<Frame>
+  <img src="/images/automation-naming-before.png" alt="Zap with poor naming conventions" />
+</Frame>
+
+<Frame>
+  <img src="/images/automation-path-before.png" alt="Zap path with poor naming conventions" />
+</Frame>
+
+--
+
+### Zap after applying guidelines
+
+✅ Easy to understand Zap name and data journey
+
+✅ Clear filter conditions
+
+✅ Clear path conditions
+
+✅ Clear action
+
+<Frame>
+  <img src="/images/automation-naming-after.png" alt="Zap with good naming conventions" />
+</Frame>
+
+## Conclusion
+
+By standardizing our naming conventions, we create a powerful framework that makes every automation easy to understand, maintain, and build upon.
+
+Consistency accelerates onboarding, reduces confusion, and streamlines collaboration—ensuring our workflows remain scalable and effective as our team grows and evolves.
+
+**Remember:**
+
+* [Team / Department] - [Source/Trigger → Destination] - [Short Purpose]
+* Keep it simple.
+* Keep it clear.
+* Read it from your teammate's perspective.
+* Use the verb tense (Create, not Creation).
+
+And most importantly, have fun! 💯

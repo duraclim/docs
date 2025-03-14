@@ -1,0 +1,214 @@
+---
+title: Automation Design Standards
+description: Guidelines for designing effective, scalable, and maintainable automations
+icon: gears
+---
+
+# Automation Design Standards
+
+Below is a set of guidelines for designing new automations.
+
+These are meant to ensure that every automation meets the following core criteria: **Efficiency, Simplicity, Scalability, Business Alignment, Maintainability, and Resilience.**
+
+## 1. Efficiency
+
+### Motto
+
+> _"Efficiency is intelligent laziness." – David Dunham_
+
+### What It Means
+
+* **Resource Efficiency**: Minimize the time, tasks, and API calls needed to accomplish the task.
+* **Workflow Streamlining**: Eliminate unnecessary steps or redundant logic.
+
+### Key Questions
+
+* Is there a simpler way to achieve the same outcome?
+* Are we making any unnecessary API calls or data fetches?
+* Can we reduce latency and task consumption by rearranging steps or by using filters/conditions earlier?
+
+### Best Practices
+
+* **Optimize Triggers:** Use precise triggers or filters to start the automation only when necessary.
+* **Batch Updates:** If you need to process multiple items, consider batching them in a single step (where applicable) instead of running the same action repeatedly.
+* **Divergent Thinking**: Start by drafting multiple designs and considering multiple approaches towards the desired outcome, in order to find the most efficient.
+
+<Frame>
+  <img src="/images/automation-efficiency-diagram.png" alt="Automation Efficiency Diagram" />
+</Frame>
+
+## 2. Simplicity
+
+### Motto
+
+> _"Simplicity is the ultimate sophistication." – Leonardo da Vinci_
+
+### What It Means
+
+* **Ease of Understanding:** The automation should be straightforward for any team member to grasp.
+* **Minimal Complexity:** Fewer steps, fewer paths, and fewer conditional branches—unless absolutely necessary.
+
+### Key Questions
+
+* Can we explain this automation in one or two sentences?
+* Could any steps be merged, removed, or simplified?
+
+### Best Practices
+
+* **Use Clear Step Names:** Ensure every step's name describes exactly what it does. Refer to [Automations - Naming Conventions](/automations/naming-conventions) for further details.
+* **Limit Conditionals:** Try to avoid overly nested conditions or multiple parallel paths when a simpler approach exists.
+* **Document the "Why":** Briefly note the purpose of the automation so future maintainers understand the context.
+
+<Frame>
+  <img src="/images/automation-simplicity-diagram.png" alt="Automation Simplicity Diagram" />
+</Frame>
+
+## 3. Scalability
+
+### Motto
+
+> _"Design today for tomorrow's demand."_
+
+### What It Means
+
+* **Handles Growth:** The automation can support increased data volume, more frequent triggers, or expanded functionality without major modification.
+* **Modular Design**: You can add or swap out components (e.g., new data sources or destinations) without breaking the existing flow.
+
+### Key Questions
+
+* Will this workflow still work when the data volume doubles or triples?
+* Is there a plan to add new features or fields later—can the design accommodate that?
+
+### Best Practices
+
+* **Modular Steps:** Break workflows into smaller, reusable segments (e.g., a sub-Zap approach if using Zapier. See [below](#sub-zap-methodology) for further details).
+* **Avoid Hard-Coded Values:** Store key parameters in environment variables or variables that can be easily updated.
+* **Design for Extensibility:** If you anticipate new apps or data fields, keep them in mind during initial setup.
+
+<Frame>
+  <img src="/images/automation-scalability-diagram.png" alt="Automation Scalability Diagram" />
+</Frame>
+
+> ### Sub-Zap Methodology
+>
+> In Zapier, a sub-Zap is essentially a reusable Zap that you can call from inside another "main" Zap. Think of it like creating a function in programming: once you've defined a set of steps or logic you frequently use, you can wrap that into a sub-Zap and then call it from multiple Zaps instead of rebuilding the same actions every time.
+>
+> **Why Use Sub-Zaps?**
+>
+> * Reusability: If you have the same process (e.g., formatting data, sending notifications) in multiple Zaps, you can define it once as a sub-Zap and then reference it wherever needed.
+> * Simpler Maintenance: When you need to update that shared logic, you do it in one place—the sub-Zap—rather than editing each Zap that needs the update.
+> * Scalability: It's easier to expand or modify complex automations by breaking them down into smaller, modular Zaps.
+> * Consistency: Ensures that all processes calling the sub-Zap handle data formatting, error handling, etc., in exactly the same way.
+>
+> **How It Works**
+>
+> * Create a Sub-Zap: Build a Zap dedicated to one specific function or flow (e.g., "Send Slack Alert" or "Normalize Contact Data").
+> * Add a "Sub-Zap" Trigger: Use Zapier's Sub-Zap feature, which allows you to accept input from other Zaps.
+> * Reference the Sub-Zap in a Main Zap: In your main automation, add a step that calls the sub-Zap, passing along any necessary data (like a contact's email or message text).
+> * Return Output (Optional): If the sub-Zap generates or transforms data, it can send that data back to the main Zap, which can continue processing.
+> By structuring automations in a modular way with sub-Zaps, you keep them clean, efficient, and much easier to manage over time.
+>
+> **Reference:** https://help.zapier.com/hc/en-us/articles/8496308527629-Create-reusable-Zaps-with-Sub-Zaps
+
+## 4. Business Alignment
+
+### Motto
+
+> _"There is nothing so useless as doing efficiently that which should not be done at all." – Peter Drucker_
+
+### What It Means
+
+* **Supports Real Business Needs:** The automation has a clear, measurable impact on the organization.
+* **Delivers Tangible Value:** Either by saving time, cutting costs, or providing necessary insights. Never automate simply for the sake of automation itself.
+
+### Key Questions
+
+* Does the automation accurately and reliably solve the initial issue/request?
+* Does this automation directly align with a business goal (e.g., lead conversion, customer retention)?
+* What is the ROI on creating and maintaining this automation?
+* Can we measure the success (KPIs or metrics) once this is deployed?
+
+### Best Practices
+
+* **Stakeholder Involvement:** Work closely with the teams who will benefit from the automation to ensure it addresses their pain points.
+* **Define Success Metrics:** Consult with your PM/Supervisor to track metrics like time saved, error reduction, or revenue impact.
+* **Continuous Feedback:** Gather feedback from end-users to refine the process over time.
+
+<Frame>
+  <img src="/images/automation-business-alignment-diagram.png" alt="Business Alignment Diagram" />
+</Frame>
+
+## 5. Maintainability
+
+### Motto
+
+> _"If it's too fragile to change, it's not maintainable."_
+
+### What It Means
+
+* **Long-Term Upkeep:** Automations should be easy to update as apps, data structures, or business logic change.
+* **Collaboration & Handover:** Different team members might maintain or troubleshoot the automation.
+
+### Key Questions
+
+* Can a new team member quickly understand how to modify or fix this?
+* Is all relevant logic clearly documented?
+
+### Best Practices
+
+* **Version Control:** Keep a history of changes (and reasons for them) on the Miro documentation.
+* **Naming & Comments:** Use descriptive names for variables, steps, and references.
+* **Regular Reviews:** Set a schedule to revisit automations and confirm they're still aligned with current processes.
+* **Clear Documentation:** Make sure the Miro documentation is as detailed as possible. Always assume the reader has zero knowledge of the automation, its context or its purpose.
+
+<Frame>
+  <img src="/images/automation-maintainability-diagram.png" alt="Maintainability Diagram" />
+</Frame>
+
+## 6. Resilience
+
+### Motto
+
+> _"If you don't design for failure, you're designing for it to happen silently."_
+
+### What It Means
+
+* **Avoid Downtime:** Automations that fail silently can cause data loss or operation breaks.
+* **Graceful Error Handling:** If something goes wrong, the system should alert the right people and, if possible, retry or fail without disrupting downstream processes.
+
+### Key Questions
+
+* What happens if an API call fails or times out?
+* Do we have alerts or notifications set up for failures?
+
+### Best Practices
+
+* **Use Filters & Error Handlers:** Catch errors and handle them proactively. Make sure to implement error handling in critical points of the code (in the case of a Python or JS task).
+* **Test Extreme Scenarios:** Validate how the automation behaves with large data sets or unexpected inputs.
+* **Implement Notifications:** Send error alerts to a Slack channel or email group.
+
+<Frame>
+  <img src="/images/automation-resilience-diagram.png" alt="Resilience Diagram" />
+</Frame>
+
+## Bringing It All Together
+
+### Key Criteria
+
+* **Efficiency:** Minimize waste and optimize performance.
+* **Simplicity:** Keep it clear, simple and easy to understand.
+* **Scalability:** Ensure it can handle future growth or feature additions.
+* **Business Alignment:** Tie it to real business needs and outcomes.
+* **Maintainability:** Make sure it's easy to update, troubleshoot, and hand off.
+* **Resilience:** Plan for errors and ensure the automation can handle edge cases gracefully.
+
+<Card title="Automation Design Checklist" icon="clipboard-check">
+  <CheckboxField id="efficiency" label="Optimized for efficiency (minimal steps, reduced API calls)" />
+  <CheckboxField id="simplicity" label="Simple to understand and explain" />
+  <CheckboxField id="scalability" label="Scalable for future growth and changes" />
+  <CheckboxField id="business" label="Aligned with clear business outcomes" />
+  <CheckboxField id="maintainability" label="Maintainable by any team member" />
+  <CheckboxField id="resilience" label="Resilient against failures and edge cases" />
+</Card>
+
+**With these guidelines in mind, each automation you conceive will be robust, aligned with organizational goals, and positioned to deliver ongoing value to the team.**

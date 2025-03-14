@@ -1,0 +1,331 @@
+---
+title: Go Reschedule Client
+description: Documentation for our Go-based client rescheduling service
+icon: calendar-arrow-right
+---
+
+# Go Reschedule Client
+
+The Go Reschedule Client is a backend service written in Go that handles client appointment rescheduling and related operations. It provides RESTful APIs to manage client rescheduling requests, blacklisted clients, and token authentication.
+
+<Frame>
+  <img src="/images/go-reschedule-architecture.png" alt="Go Reschedule Client Architecture" className="rounded-lg" />
+</Frame>
+
+## Project Overview
+
+### Purpose and Features
+
+The Reschedule Client provides:
+
+- API endpoints for client rescheduling requests
+- Blacklist functionality for problematic clients
+- Authentication token management
+- Integration with Jobber (our FSM) via GraphQL
+- Geospatial calculations via Redis
+- Cron jobs for regular maintenance tasks
+
+### Tech Stack
+
+- **Language**: Go 1.24
+- **API Framework**: Standard net/http or a lightweight router
+- **Database**: SQLite 3
+- **Caching**: Redis for geospatial data
+- **GraphQL Client**: For Jobber API integration
+- **Containerization**: Docker
+- **CI/CD**: GitHub Actions
+
+## Project Structure
+
+The project follows a standard Go project layout with clear separation of concerns:
+
+<AccordionGroup>
+  <Accordion title="Root Directory Structure">
+    ```
+    go-reschedule-client/
+    ├── Makefile             # Build and deployment commands
+    ├── README.md            # Project documentation
+    ├── docker-compose.yaml  # Docker configuration
+    ├── docker-compose.dev.yml # Development Docker configuration
+    └── src/                 # Source code
+    ```
+  </Accordion>
+
+  <Accordion title="Source Directory Structure">
+    ```
+    src/
+    ├── api/                  # API Layer
+    │   ├── resource/         # API Resources
+    │   │   ├── client/       # Client resource handlers
+    │   │   ├── common/       # Shared components
+    │   │   └── token/        # Token auth handlers
+    │   └── router/           # API routing
+    ├── cmd/                  # Entry points
+    │   ├── api/              # API server
+    │   └── migrate/          # Database migrations
+    ├── config/               # Configuration
+    ├── crons/                # Scheduled jobs
+    ├── internal/             # Internal packages
+    │   ├── graphql/          # GraphQL client
+    │   ├── maps/             # Mapping services
+    │   ├── model/            # Data models
+    │   └── redis/            # Redis integration
+    ├── migrations/           # SQL migrations
+    ├── scripts/              # Utility scripts
+    └── util/                 # Utilities
+        ├── helpers/          # Helper functions
+        ├── test/             # Test utilities
+        └── validator/        # Input validation
+    ```
+  </Accordion>
+
+  <Accordion title="API Resource Structure">
+    Each resource typically includes:
+    ```
+    resource/client/
+    ├── handler.go     # HTTP handlers
+    ├── model.go       # Data models
+    └── repository.go  # Database operations
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Core Components
+
+### API Resources
+
+The service exposes several API resources:
+
+#### Client Resource
+
+Handles client-related operations, including rescheduling and blacklisting:
+
+```go
+// Path: src/api/resource/client/handler.go
+func (h *Handler) HandleRescheduleRequest(w http.ResponseWriter, r *http.Request) {
+    // Implementation details...
+}
+
+func (h *Handler) HandleBlacklistClient(w http.ResponseWriter, r *http.Request) {
+    // Implementation details...
+}
+```
+
+#### Token Resource
+
+Manages authentication tokens:
+
+```go
+// Path: src/api/resource/token/handler.go
+func (h *Handler) HandleCreateToken(w http.ResponseWriter, r *http.Request) {
+    // Implementation details...
+}
+
+func (h *Handler) HandleValidateToken(w http.ResponseWriter, r *http.Request) {
+    // Implementation details...
+}
+```
+
+### GraphQL Integration
+
+The service communicates with Jobber using GraphQL:
+
+```go
+// Path: src/internal/graphql/resource/jobber/handler.go
+func (h *Handler) FetchJobDetails(jobID string) (*model.Job, error) {
+    // GraphQL query implementation...
+}
+
+func (h *Handler) UpdateJobSchedule(jobID string, newDate time.Time) error {
+    // GraphQL mutation implementation...
+}
+```
+
+### Geospatial Services
+
+Redis is used for efficient geospatial calculations:
+
+```go
+// Path: src/internal/redis/api/resource/geospatial/handler.go
+func (h *Handler) FindNearbyTechnicians(lat, lng float64, radius float64) ([]string, error) {
+    // Redis GEORADIUS implementation...
+}
+```
+
+## Database Schema
+
+The service uses several database tables:
+
+### Blacklisted Clients Table
+
+```sql
+-- Path: src/migrations/00001_create_blacklisted_clients_table.sql
+CREATE TABLE blacklisted_clients (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) NOT NULL,
+    phone VARCHAR(50) NOT NULL,
+    reason TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(email, phone)
+);
+```
+
+### Access Token Table
+
+```sql
+-- Path: src/migrations/00003_add_access_token_table.sql
+CREATE TABLE access_tokens (
+    id SERIAL PRIMARY KEY,
+    token VARCHAR(255) NOT NULL,
+    client_id INTEGER NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(token)
+);
+```
+
+## API Endpoints
+
+The service provides the following API endpoints:
+
+| Endpoint                      | Method | Description                        |
+|-------------------------------|--------|------------------------------------|
+| `/api/clients`                | GET    | List all clients                   |
+| `/api/clients/:id`            | GET    | Get client details                 |
+| `/api/clients/:id/reschedule` | POST   | Reschedule a client's appointment  |
+| `/api/clients/blacklist`      | POST   | Add a client to the blacklist      |
+| `/api/clients/blacklist/:id`  | DELETE | Remove a client from the blacklist |
+| `/api/tokens`                 | POST   | Create a new authentication token  |
+| `/api/tokens/validate`        | POST   | Validate an authentication token   |
+
+## Getting Started with Development
+
+To start developing on the Go Reschedule Client:
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/duraclim/go-reschedule-client.git
+    cd go-reschedule-client
+    ```
+  </Step>
+  
+  <Step title="Set up environment">
+    ```bash
+    # Copy example environment variables
+    cp src/.env.example src/.env
+    
+    # Edit .env with your local values
+    ```
+  </Step>
+  
+  <Step title="Start development environment">
+    ```bash
+    # Using Docker
+    docker-compose -f docker-compose.dev.yml up
+    
+    # Or run locally
+    cd src
+    go run cmd/api/main.go
+    ```
+  </Step>
+  
+  <Step title="Run database migrations">
+    ```bash
+    # Using the included script
+    ./scripts/migrate.sh
+    
+    # Or manually
+    cd src
+    go run cmd/migrate/main.go
+    ```
+  </Step>
+</Steps>
+
+## Deployment
+
+The service is deployed in two environments:
+
+1. **Production**: Deployed via GitHub Actions to our AWS infrastructure
+2. **Staging**: Available for testing at api-staging.duraclim.com
+
+### Docker Deployment
+
+The service can be deployed using Docker:
+
+```bash
+# Build the Docker image
+docker build -t go-reschedule-client ./src
+
+# Run the container
+docker run -p 8080:8080 go-reschedule-client
+```
+
+## Cron Jobs
+
+The service includes several scheduled jobs:
+
+```go
+// Path: src/crons/crons.go
+func SetupCronJobs(repo *client.Repository) {
+    c := cron.New()
+    
+    // Run daily at midnight
+    c.AddFunc("0 0 * * *", func() {
+        cleanupExpiredTokens(repo)
+    })
+    
+    // Run weekly on Sunday at 1am
+    c.AddFunc("0 1 * * 0", func() {
+        refreshCacheData(repo)
+    })
+    
+    c.Start()
+}
+```
+
+## Testing
+
+The project includes testing utilities:
+
+```bash
+# Run all tests
+make test
+
+# Run specific tests
+go test ./src/api/resource/client/...
+```
+
+## Error Handling
+
+The service uses a standardized error handling approach:
+
+```go
+// Path: src/api/resource/common/err/err.go
+func RespondWithError(w http.ResponseWriter, code int, message string) {
+    RespondWithJSON(w, code, map[string]string{"error": message})
+}
+
+func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+    response, _ := json.Marshal(payload)
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(code)
+    w.Write(response)
+}
+```
+
+## Contributing
+
+When contributing to the Go Reschedule Client, please follow these guidelines:
+
+1. Follow standard Go project layout and idioms
+2. Add unit tests for new functionality
+3. Use the established error handling patterns
+4. Follow the project's naming conventions
+5. Update documentation for any new endpoints or features
+
+## Additional Resources
+
+- [API Documentation](/api/overview)
+- [Deployment Pipeline](/projects/go/deployment)
+- [Jobber GraphQL API Reference](https://developer.getjobber.com/docs/graphql)

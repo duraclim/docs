@@ -1,0 +1,896 @@
+---
+title: Next.js Deployment
+description: Guide to deploying Next.js applications in Duraclim's infrastructure
+icon: cloud-arrow-up
+---
+
+# Next.js Deployment
+
+This document covers our deployment strategies, environments, and processes for Next.js applications at Duraclim.
+
+<Frame>
+  <img src="/images/nextjs-deployment-pipeline.png" alt="Next.js Deployment Pipeline" className="rounded-lg" />
+</Frame>
+
+## Deployment Environments
+
+We maintain multiple environments for our Next.js applications:
+
+<CardGroup cols={3}>
+  <Card title="Development" icon="code">
+    For active development and early testing
+    
+    **URL Pattern:** `dev-[app-name].duraclim.com`
+  </Card>
+  
+  <Card title="Staging" icon="vial">
+    For testing before production deployment
+    
+    **URL Pattern:** `staging-[app-name].duraclim.com`
+  </Card>
+  
+  <Card title="Production" icon="rocket">
+    Live environment for end users
+    
+    **URL Pattern:** `[app-name].duraclim.com`
+  </Card>
+</CardGroup>
+
+## Deployment Methods
+
+We use two primary deployment methods for our Next.js applications:
+
+### 1. Vercel Deployment (Primary)
+
+Most of our frontend applications are deployed to Vercel for its optimized Next.js hosting.
+
+<Steps>
+  <Step title="Connect Repository">
+    Connect the GitHub repository to Vercel
+  </Step>
+  
+  <Step title="Configure Project">
+    Set up the project on Vercel with appropriate settings:
+    
+    - **Framework Preset:** Next.js
+    - **Root Directory:** ./
+    - **Build Command:** npm run build
+    - **Output Directory:** .next
+  </Step>
+  
+  <Step title="Configure Environment Variables">
+    Add environment variables in the Vercel project settings
+    
+    ```
+    NEXT_PUBLIC_API_URL=https://api.duraclim.com
+    NEXT_PUBLIC_SUPABASE_URL=https://yourproject.supabase.co
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+    ```
+  </Step>
+  
+  <Step title="Configure Domains">
+    Add custom domains for each environment
+    
+    - Production: `calculator.duraclim.com`
+    - Staging: `staging-calculator.duraclim.com`
+  </Step>
+</Steps>
+
+### 2. Docker Deployment (Alternative)
+
+For more complex deployments or when Vercel is not suitable, we use Docker with AWS infrastructure.
+
+<Steps>
+  <Step title="Create Dockerfile">
+    ```dockerfile
+    # Path: Dockerfile
+    
+    # Stage 1: Build the application
+    FROM node:18-alpine AS builder
+    
+    WORKDIR /app
+    
+    # Copy package files and install dependencies
+    COPY package.json package-lock.json ./
+    RUN npm ci
+    
+    # Copy the rest of the application code
+    COPY . .
+    
+    # Build the application
+    ENV NEXT_TELEMETRY_DISABLED 1
+    RUN npm run build
+    
+    # Stage 2: Create the production image
+    FROM node:18-alpine AS runner
+    
+    WORKDIR /app
+    
+    ENV NODE_ENV production
+    ENV NEXT_TELEMETRY_DISABLED 1
+    
+    # Add a non-root user
+    RUN addgroup --system --gid 1001 nodejs
+    RUN adduser --system --uid 1001 nextjs
+    
+    # Copy the build output from the builder stage
+    COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+    COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+    COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+    
+    # Switch to the non-root user
+    USER nextjs
+    
+    # Expose the application port
+    EXPOSE 3000
+    
+    # Start the application
+    CMD ["node", "server.js"]
+    ```
+  </Step>
+  
+  <Step title="Configure Next.js for standalone output">
+    Update next.config.mjs to output a standalone build
+    
+    ```javascript
+    // Path: next.config.mjs
+    /** @type {import('next').NextConfig} */
+    const nextConfig = {
+      output: 'standalone',
+      // ... other configuration
+    };
+    
+    export default nextConfig;
+    ```
+  </Step>
+  
+  <Step title="Create Docker Compose file">
+    ```yaml
+    # Path: docker-compose.yml
+    version: '3'
+    
+    services:
+      frontend:
+        build:
+          context: .
+          dockerfile: Dockerfile
+        ports:
+          - "3000:3000"
+        environment:
+          - NEXT_PUBLIC_API_URL=https://api.duraclim.com
+          - NEXT_PUBLIC_SUPABASE_URL=https://yourproject.supabase.co
+          - NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+        restart: always
+    ```
+  </Step>
+  
+  <Step title="Deploy to AWS ECS">
+    Deploy the Docker container to Amazon ECS
+    
+    ```bash
+    # Build and push the Docker image to ECR
+    aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 123456789012.dkr.ecr.us-east-1.amazonaws.com
+    
+    docker build -t 123456789012.dkr.ecr.us-east-1.amazonaws.com/duraclim-calculator:latest .
+    
+    docker push 123456789012.dkr.ecr.us-east-1.amazonaws.com/duraclim-calculator:latest
+    
+    # Update the ECS service to use the new image
+    aws ecs update-service --cluster duraclim-cluster --service calculator-service --force-new-deployment
+    ```
+  </Step>
+</Steps>
+
+## CI/CD Pipeline
+
+We use GitHub Actions for continuous integration and deployment:
+
+### GitHub Actions Workflow
+
+```yaml
+# Path: .github/workflows/ci-cd.yml
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Run linting
+        run: npm run lint
+        
+      - name: Run unit tests
+        run: npm run test:unit
+        
+      - name: Run e2e tests
+        run: npm run test:e2e
+  
+  deploy-development:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/develop'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Deploy to Vercel (Development)
+        uses: amondnet/vercel-action@v20
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          vercel-args: '--prod'
+          scope: ${{ secrets.VERCEL_SCOPE }}
+    
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Deploy to Vercel (Production)
+        uses: amondnet/vercel-action@v20
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_PROD }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          vercel-args: '--prod'
+          scope: ${{ secrets.VERCEL_SCOPE }}
+```
+
+### Branch Strategy for Deployments
+
+<AccordionGroup>
+  <Accordion title="Development Environment">
+    - **Branch:** `develop` and feature branches
+    - **Deployment:** Automatic preview deployments for all feature branches
+    - **Purpose:** For active development and early testing
+  </Accordion>
+  
+  <Accordion title="Staging Environment">
+    - **Branch:** `release/*` branches
+    - **Deployment:** Manual deployment after testing feature branches
+    - **Purpose:** Final testing before production
+  </Accordion>
+  
+  <Accordion title="Production Environment">
+    - **Branch:** `main`
+    - **Deployment:** Automated after approval
+    - **Purpose:** Live environment for end users
+  </Accordion>
+</AccordionGroup>
+
+## Environment Configuration
+
+### Environment Variables
+
+We manage environment variables differently depending on the deployment method:
+
+<Tabs>
+  <Tab title="Vercel">
+    Environment variables are configured in the Vercel project settings:
+    
+    1. Go to the Vercel project dashboard
+    2. Navigate to Settings > Environment Variables
+    3. Add variables for each environment (Production, Preview, Development)
+    
+    ```
+    NEXT_PUBLIC_API_URL=https://api.duraclim.com
+    NEXT_PUBLIC_SUPABASE_URL=https://yourproject.supabase.co
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+    ```
+  </Tab>
+  
+  <Tab title="Docker/AWS">
+    Environment variables are configured using AWS Parameter Store and injected at deployment time:
+    
+    ```bash
+    # Store sensitive variables in AWS Parameter Store
+    aws ssm put-parameter \
+      --name "/duraclim/calculator/prod/NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+      --value "your-anon-key" \
+      --type "SecureString"
+    
+    # Reference these in the ECS task definition
+    {
+      "name": "calculator",
+      "image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/duraclim-calculator:latest",
+      "essential": true,
+      "environment": [
+        {
+          "name": "NEXT_PUBLIC_API_URL",
+          "value": "https://api.duraclim.com"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+          "valueFrom": "/duraclim/calculator/prod/NEXT_PUBLIC_SUPABASE_ANON_KEY"
+        }
+      ]
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Runtime Environment Detection
+
+Our Next.js applications detect the current environment:
+
+```typescript
+// Path: lib/environment.ts
+export type Environment = 'development' | 'staging' | 'production';
+
+export function getEnvironment(): Environment {
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  
+  if (process.env.NODE_ENV === 'development' || hostname === 'localhost') {
+    return 'development';
+  }
+  
+  if (hostname.startsWith('staging-') || hostname.includes('vercel.app')) {
+    return 'staging';
+  }
+  
+  return 'production';
+}
+
+export function getApiUrl(): string {
+  const env = getEnvironment();
+  
+  switch (env) {
+    case 'development':
+      return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+    case 'staging':
+      return 'https://api-staging.duraclim.com';
+    case 'production':
+      return 'https://api.duraclim.com';
+    default:
+      return 'https://api.duraclim.com';
+  }
+}
+```
+
+## Infrastructure
+
+### Vercel Infrastructure
+
+<AccordionGroup>
+  <Accordion title="Networking">
+    - **CDN:** Vercel Edge Network with global distribution
+    - **Custom Domains:** Configured with SSL certificates
+    - **CNAME Records:** Point domain to Vercel's servers
+  </Accordion>
+  
+  <Accordion title="Performance Optimization">
+    - **Edge Caching:** Static assets cached at the edge
+    - **Image Optimization:** Automatic image optimization
+    - **Serverless Functions:** API routes deployed as serverless functions
+  </Accordion>
+  
+  <Accordion title="Monitoring">
+    - **Analytics:** Vercel Analytics for performance monitoring
+    - **Logs:** Function invocation logs
+    - **Alerts:** Error rate and performance alerts
+  </Accordion>
+</AccordionGroup>
+
+### AWS Infrastructure
+
+<AccordionGroup>
+  <Accordion title="Containers">
+    - **ECS:** Amazon Elastic Container Service for container orchestration
+    - **ECR:** Elastic Container Registry for Docker images
+    - **Fargate:** Serverless compute for containers
+  </Accordion>
+  
+  <Accordion title="Networking">
+    - **ALB:** Application Load Balancer for traffic distribution
+    - **Route 53:** DNS management
+    - **CloudFront:** CDN for static asset distribution
+  </Accordion>
+  
+  <Accordion title="Monitoring">
+    - **CloudWatch:** Logs and metrics
+    - **X-Ray:** Application tracing
+    - **EventBridge:** Event-driven alerting
+  </Accordion>
+</AccordionGroup>
+
+## Deployment Best Practices
+
+### Zero-Downtime Deployment
+
+Our deployment strategy ensures zero downtime:
+
+1. **Blue-Green Deployment:** New version is deployed alongside the current version
+2. **Health Checks:** New version is verified before traffic is directed to it
+3. **Rollback Plan:** Automated rollback if deployment fails
+
+### Performance Monitoring
+
+We monitor the performance of our deployments:
+
+<CardGroup cols={2}>
+  <Card title="Vercel Analytics" icon="chart-line">
+    Vercel's built-in analytics for Web Vitals and user experience metrics
+  </Card>
+  
+  <Card title="Sentry" icon="bug">
+    Error tracking and performance monitoring
+  </Card>
+  
+  <Card title="DataDog" icon="dog">
+    Infrastructure and application monitoring
+  </Card>
+  
+  <Card title="CloudWatch" icon="aws">
+    AWS native monitoring for Docker deployments
+  </Card>
+</CardGroup>
+
+### Security Considerations
+
+<AccordionGroup>
+  <Accordion title="Environment Variable Security">
+    - Use environment-specific variables
+    - Never expose sensitive variables client-side (avoid `NEXT_PUBLIC_` prefix for secrets)
+    - Rotate secrets regularly
+  </Accordion>
+  
+  <Accordion title="Dependency Security">
+    - Regular dependency updates
+    - Security scanning with `npm audit`
+    - Dependabot alerts
+  </Accordion>
+  
+  <Accordion title="Infrastructure Security">
+    - HTTPS enforcement
+    - Content Security Policy (CSP)
+    - CORS configuration
+    - Rate limiting
+  </Accordion>
+</AccordionGroup>
+
+## Deployment Checklist
+
+<Card title="Pre-Deployment Checklist" icon="clipboard-check">
+  <CheckboxField id="tests" label="All tests passing" />
+  <CheckboxField id="build" label="Build successfully completes" />
+  <CheckboxField id="environment" label="Environment variables configured" />
+  <CheckboxField id="performance" label="Performance benchmarks meet standards" />
+  <CheckboxField id="security" label="Security scan completed" />
+  <CheckboxField id="accessibility" label="Accessibility requirements met" />
+  <CheckboxField id="seo" label="SEO optimizations applied" />
+  <CheckboxField id="documentation" label="Documentation updated" />
+</Card>
+
+## Rollback Procedures
+
+If a deployment fails or introduces issues, follow these rollback procedures:
+
+### Vercel Rollback
+
+1. Go to the Vercel project dashboard
+2. Navigate to Deployments
+3. Find the last known good deployment
+4. Click the three dots (...) and select "Promote to Production"
+
+### AWS Rollback
+
+```bash
+# Roll back to previous task definition
+aws ecs update-service \
+  --cluster duraclim-cluster \
+  --service calculator-service \
+  --task-definition calculator:123 \
+  --force-new-deployment
+```
+
+## Troubleshooting Common Deployment Issues
+
+<AccordionGroup>
+  <Accordion title="Build Failures">
+    - **Check:** Build logs for syntax errors or failed imports
+    - **Solution:** Fix code issues and redeploy
+    - **Prevention:** Run local builds before committing
+  </Accordion>
+  
+  <Accordion title="Environment Variable Issues">
+    - **Check:** Environment variables in deployment settings
+    - **Solution:** Verify and update environment variables
+    - **Prevention:** Use environment variable schemas for validation
+  </Accordion>
+  
+  <Accordion title="Runtime Errors">
+    - **Check:** Error logs in Vercel or CloudWatch
+    - **Solution:** Fix code issues and redeploy
+    - **Prevention:** Comprehensive error handling and tests
+  </Accordion>
+  
+  <Accordion title="Performance Issues">
+    - **Check:** Performance metrics in analytics
+    - **Solution:** Optimize code, reduce bundle size
+    - **Prevention:** Regular performance testing
+  </Accordion>
+</AccordionGroup>
+
+## Deployment Automation
+
+We automate additional deployment tasks:
+
+### Database Migrations
+
+```yaml
+# Path: .github/workflows/migrations.yml
+name: Database Migrations
+
+on:
+  workflow_run:
+    workflows: ["CI/CD Pipeline"]
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  migrations:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Install Supabase CLI
+        run: npm install -g @supabase/cli
+      
+      - name: Run migrations
+        run: supabase db push
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+```
+
+### Cache Invalidation
+
+```yaml
+# Path: .github/workflows/cache-invalidation.yml
+name: Cache Invalidation
+
+on:
+  workflow_run:
+    workflows: ["CI/CD Pipeline"]
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  invalidate-cache:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+      - name: Invalidate CloudFront cache
+        uses: chetan/invalidate-cloudfront-action@v2
+        env:
+          DISTRIBUTION: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+          PATHS: '/*'
+          AWS_REGION: 'us-east-1'
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
+## Deployment Monitoring and Notifications
+
+We use Slack for deployment notifications:
+
+```yaml
+# Path: .github/workflows/deployment-notification.yml
+name: Deployment Notification
+
+on:
+  workflow_run:
+    workflows: ["CI/CD Pipeline"]
+    types:
+      - completed
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Notify Slack on success
+        if: ${{ github.event.workflow_run.conclusion == 'success' }}
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          payload: |
+            {
+              "text": "✅ Deployment succeeded for ${{ github.repository }} to ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "✅ *Deployment succeeded*"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Repository:*\n${{ github.repository }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Environment:*\n${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Deployed by:*\n${{ github.actor }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Deployment"
+                      },
+                      "url": "${{ github.ref == 'refs/heads/main' && 'https://calculator.duraclim.com' || 'https://dev-calculator.duraclim.com' }}"
+                    },
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Workflow"
+                      },
+                      "url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+      
+      - name: Notify Slack on failure
+        if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          payload: |
+            {
+              "text": "❌ Deployment failed for ${{ github.repository }} to ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "❌ *Deployment failed*"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Repository:*\n${{ github.repository }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Environment:*\n${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Attempted by:*\n${{ github.actor }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Workflow"
+                      },
+                      "url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+```
+
+## Scaling Strategies
+
+As our applications grow, we implement these scaling strategies:
+
+### Vercel Scaling
+
+Vercel automatically scales based on demand, but we optimize for performance:
+
+1. **Edge Network**: Deploy static assets to Vercel's global edge network
+2. **ISR (Incremental Static Regeneration)**: Use ISR for high-traffic pages
+3. **Edge Middleware**: Move security and routing logic to edge functions
+
+### AWS Scaling
+
+For applications deployed to AWS, we implement:
+
+1. **Auto Scaling**: Configure ECS services to scale based on CPU/memory usage
+2. **Load Balancing**: Distribute traffic across multiple instances
+3. **Database Scaling**: Implement read replicas for high-traffic applications
+
+```bash
+# Configure auto scaling for ECS service
+aws application-autoscaling register-scalable-target \
+  --service-namespace ecs \
+  --scalable-dimension ecs:service:DesiredCount \
+  --resource-id service/duraclim-cluster/calculator-service \
+  --min-capacity 2 \
+  --max-capacity 10
+
+# Create scaling policy based on CPU utilization
+aws application-autoscaling put-scaling-policy \
+  --service-namespace ecs \
+  --scalable-dimension ecs:service:DesiredCount \
+  --resource-id service/duraclim-cluster/calculator-service \
+  --policy-name cpu-tracking-scaling-policy \
+  --policy-type TargetTrackingScaling \
+  --target-tracking-scaling-policy-configuration '{
+      "TargetValue": 70.0,
+      "PredefinedMetricSpecification": {
+          "PredefinedMetricType": "ECSServiceAverageCPUUtilization"
+      },
+      "ScaleOutCooldown": 60,
+      "ScaleInCooldown": 60
+  }'
+```
+
+## Multi-Region Deployment
+
+For applications requiring global reach and high availability, we implement multi-region deployments:
+
+<Steps>
+  <Step title="Set up regional infrastructure">
+    Deploy infrastructure in multiple AWS regions or Vercel regions
+  </Step>
+  
+  <Step title="Configure DNS routing">
+    Set up Route 53 or Cloudflare for geolocation-based routing
+  </Step>
+  
+  <Step title="Implement database replication">
+    Set up cross-region database replication for redundancy
+  </Step>
+  
+  <Step title="Test failover">
+    Regularly test failover between regions to ensure reliability
+  </Step>
+</Steps>
+
+## Disaster Recovery
+
+We implement disaster recovery procedures to minimize downtime in case of major issues:
+
+<AccordionGroup>
+  <Accordion title="Backup Strategy">
+    - Database backups are taken daily and retained for 30 days
+    - Application code is versioned in Git
+    - Infrastructure is defined as code in CloudFormation or Terraform
+  </Accordion>
+  
+  <Accordion title="Recovery Procedures">
+    - Database can be restored from point-in-time backups
+    - Application can be redeployed from source control
+    - DNS can be updated to point to recovery environment
+  </Accordion>
+  
+  <Accordion title="Recovery Time Objective (RTO)">
+    - Critical applications: < 1 hour
+    - Non-critical applications: < 4 hours
+  </Accordion>
+</AccordionGroup>
+
+## Cost Optimization
+
+We optimize deployment costs using these strategies:
+
+<CardGroup cols={2}>
+  <Card title="Right-sizing" icon="server">
+    Match infrastructure resources to actual needs
+  </Card>
+  
+  <Card title="Spot Instances" icon="money-bill">
+    Use AWS Spot Instances for non-critical workloads
+  </Card>
+  
+  <Card title="Reserved Capacity" icon="calendar">
+    Purchase reserved capacity for predictable workloads
+  </Card>
+  
+  <Card title="Resource Cleanup" icon="broom">
+    Automatically clean up unused resources
+  </Card>
+</CardGroup>
+
+## Deployment Documentation
+
+For each application, we maintain deployment documentation:
+
+```markdown
+# Deployment Guide for Calculator App
+
+## Prerequisites
+- GitHub access to the repository
+- AWS CLI configured with appropriate permissions
+- Vercel CLI installed
+
+## Environment Variables
+| Name | Description | Example |
+|------|-------------|---------|
+| NEXT_PUBLIC_API_URL | Backend API URL | https://api.duraclim.com |
+| NEXT_PUBLIC_SUPABASE_URL | Supabase project URL | https://yourproject.supabase.co |
+| NEXT_PUBLIC_SUPABASE_ANON_KEY | Supabase anonymous key | eyJhbGciOiJIUzI1NiIsI... |
+
+## Deployment Steps
+1. Ensure all tests pass
+2. Create a pull request to the main branch
+3. After approval and merge, CI/CD will automatically deploy
+
+## Manual Deployment
+If automatic deployment fails, follow these manual steps:
+...
+```
+
+## Conclusion
+
+This deployment strategy ensures reliable, secure, and scalable deployment of our Next.js applications across different environments. By following these practices, we maintain high-quality deployments with minimal downtime and maximum performance.
+
+For specific application deployment details, refer to the individual application's documentation. For infrastructure-related questions, contact the DevOps team via the #devops Slack channel.
+
+## Resources
+
+- [Next.js Deployment Documentation](https://nextjs.org/docs/deployment)
+- [Vercel Documentation](https://vercel.com/docs)
+- [AWS ECS Documentation](https://docs.aws.amazon.com/ecs/index.html)
+- [Docker Documentation](https://docs.docker.com/)

@@ -1,0 +1,1310 @@
+---
+title: Go Project Structure
+description: Detailed guide to the standardized file and folder structure for Duraclim's Go projects
+icon: folder-tree
+---
+
+# Go Project Structure
+
+This document outlines the standardized file and folder structure we use for all Duraclim Go projects. Following these conventions ensures consistency across projects and makes it easier for developers to work on multiple codebases.
+
+<Frame>
+  <img src="/images/go-project-structure.png" alt="Go Project Structure" className="rounded-lg" />
+</Frame>
+
+## Overview
+
+Our Go project structure is based on the [Standard Go Project Layout](https://github.com/golang-standards/project-layout) with some customizations specific to our needs. The structure is designed to:
+
+1. **Promote Clean Architecture** - Separate business logic from infrastructure code
+2. **Simplify Testing** - Make unit testing easier by using dependency injection
+3. **Support Scalability** - Allow the project to grow without becoming unmanageable
+4. **Ensure Consistency** - Maintain a consistent structure across all Go projects
+
+## Root Directory Structure
+
+```
+my-go-service/                # Root project directory
+├── cmd/                      # Entry points for executables
+├── internal/                 # Private application code
+├── pkg/                      # Public libraries for reuse
+├── api/                      # API definitions
+├── config/                   # Configuration files
+├── migrations/               # Database migrations
+├── scripts/                  # Utility scripts
+├── Dockerfile                # Docker build definition
+├── Makefile                  # Build and development tasks
+├── README.md                 # Project documentation
+├── go.mod                    # Go modules definition
+└── go.sum                    # Go modules checksums
+```
+
+## Directory Details
+
+### cmd
+
+The `cmd` directory contains the main applications for the project. Each subdirectory corresponds to an executable:
+
+```
+cmd/
+├── api/                      # API server entry point
+│   └── main.go               # Main API server code
+├── worker/                   # Background worker entry point
+│   └── main.go               # Main worker code
+├── cli/                      # CLI tool entry point
+│   └── main.go               # Main CLI code
+└── migrate/                  # Database migration tool
+    └── main.go               # Migration tool code
+```
+
+For example, a minimal API server main file:
+
+```go
+// Path: cmd/api/main.go
+package main
+
+import (
+    "context"
+    "log"
+    "net/http"
+    "os"
+    "os/signal"
+    "syscall"
+    "time"
+
+    "github.com/duraclim/my-service/config"
+    "github.com/duraclim/my-service/internal/handler/http"
+    "github.com/duraclim/my-service/internal/repository/postgres"
+    "github.com/duraclim/my-service/internal/service"
+)
+
+func main() {
+    // Load configuration
+    cfg, err := config.Load()
+    if err != nil {
+        log.Fatalf("Failed to load configuration: %v", err)
+    }
+
+    // Set up dependencies
+    db, err := postgres.ConnectDB(cfg.DatabaseURL)
+    if err != nil {
+        log.Fatalf("Failed to connect to database: %v", err)
+    }
+    defer db.Close()
+
+    // Initialize repositories
+    userRepo := postgres.NewUserRepository(db)
+
+    // Initialize services
+    userService := service.NewUserService(userRepo)
+
+    // Initialize HTTP handlers
+    router := http.NewRouter(userService)
+
+    // Create HTTP server
+    server := &http.Server{
+        Addr:    cfg.ServerAddress,
+        Handler: router,
+    }
+
+    // Start server in a goroutine
+    go func() {
+        log.Printf("Starting server on %s\n", cfg.ServerAddress)
+        if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+            log.Fatalf("Server error: %v\n", err)
+        }
+    }()
+
+    // Set up graceful shutdown
+    quit := make(chan os.Signal, 1)
+    signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+    <-quit
+    log.Println("Shutting down server...")
+
+    // Give outstanding requests a timeout of 5 seconds to complete
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
+
+    if err := server.Shutdown(ctx); err != nil {
+        log.Fatalf("Server forced to shutdown: %v\n", err)
+    }
+
+    log.Println("Server exited properly")
+}
+```
+
+### internal
+
+The `internal` directory contains private application code. This code cannot be imported by other projects:
+
+```
+internal/
+├── domain/                   # Domain model and interfaces
+│   ├── entity/               # Business entities
+│   │   ├── user.go           # User entity
+│   │   └── order.go          # Order entity
+│   ├── repository/           # Repository interfaces
+│   │   ├── user.go           # User repository interface
+│   │   └── order.go          # Order repository interface
+│   └── service/              # Service interfaces
+│       ├── user.go           # User service interface
+│       └── order.go          # Order service interface
+├── service/                  # Service implementations
+│   ├── user_service.go       # User service implementation
+│   └── order_service.go      # Order service implementation
+├── repository/               # Repository implementations
+│   └── postgres/             # PostgreSQL repository implementations
+│       ├── db.go             # Database connection
+│       ├── user_repo.go      # User repository implementation
+│       └── order_repo.go     # Order repository implementation
+└── handler/                  # API handlers
+    └── http/                 # HTTP handlers
+        ├── router.go         # HTTP router setup
+        ├── user_handler.go   # User HTTP handlers
+        └── order_handler.go  # Order HTTP handlers
+```
+
+#### Domain Layer
+
+The domain layer contains the core business entities and interfaces:
+
+```go
+// Path: internal/domain/entity/user.go
+package entity
+
+import "time"
+
+// User represents a user in the system
+type User struct {
+    ID        string     `json:"id"`
+    Email     string     `json:"email"`
+    Name      string     `json:"name"`
+    Role      string     `json:"role"`
+    CreatedAt time.Time  `json:"created_at"`
+    UpdatedAt time.Time  `json:"updated_at"`
+    DeletedAt *time.Time `json:"deleted_at,omitempty"`
+}
+```
+
+```go
+// Path: internal/domain/repository/user.go
+package repository
+
+import (
+    "context"
+    
+    "github.com/duraclim/my-service/internal/domain/entity"
+)
+
+// UserRepository defines the contract for user data access
+type UserRepository interface {
+    Create(ctx context.Context, user *entity.User) error
+    GetByID(ctx context.Context, id string) (*entity.User, error)
+    GetByEmail(ctx context.Context, email string) (*entity.User, error)
+    Update(ctx context.Context, user *entity.User) error
+    Delete(ctx context.Context, id string) error
+    List(ctx context.Context, limit, offset int) ([]*entity.User, error)
+}
+```
+
+```go
+// Path: internal/domain/service/user.go
+package service
+
+import (
+    "context"
+    
+    "github.com/duraclim/my-service/internal/domain/entity"
+)
+
+// UserService defines the contract for user business logic
+type UserService interface {
+    CreateUser(ctx context.Context, user *entity.User) error
+    GetUserByID(ctx context.Context, id string) (*entity.User, error)
+    GetUserByEmail(ctx context.Context, email string) (*entity.User, error)
+    UpdateUser(ctx context.Context, user *entity.User) error
+    DeleteUser(ctx context.Context, id string) error
+    ListUsers(ctx context.Context, limit, offset int) ([]*entity.User, error)
+}
+```
+
+#### Service Layer
+
+The service layer implements the business logic:
+
+```go
+// Path: internal/service/user_service.go
+package service
+
+import (
+    "context"
+    "errors"
+    "time"
+    
+    "github.com/google/uuid"
+    
+    "github.com/duraclim/my-service/internal/domain/entity"
+    "github.com/duraclim/my-service/internal/domain/repository"
+)
+
+// UserService implements user business logic
+type UserService struct {
+    userRepo repository.UserRepository
+}
+
+// NewUserService creates a new user service
+func NewUserService(userRepo repository.UserRepository) *UserService {
+    return &UserService{
+        userRepo: userRepo,
+    }
+}
+
+// CreateUser creates a new user
+func (s *UserService) CreateUser(ctx context.Context, user *entity.User) error {
+    // Check if user with email already exists
+    existingUser, err := s.userRepo.GetByEmail(ctx, user.Email)
+    if err == nil && existingUser != nil {
+        return errors.New("user with this email already exists")
+    }
+    
+    // Generate ID if not provided
+    if user.ID == "" {
+        user.ID = uuid.New().String()
+    }
+    
+    // Set timestamps
+    now := time.Now()
+    user.CreatedAt = now
+    user.UpdatedAt = now
+    
+    // Create user in repository
+    return s.userRepo.Create(ctx, user)
+}
+
+// Additional methods implementing the UserService interface...
+```
+
+#### Repository Layer
+
+The repository layer handles data access:
+
+```go
+// Path: internal/repository/postgres/db.go
+package postgres
+
+import (
+    "database/sql"
+    
+    _ "github.com/lib/pq" // PostgreSQL driver
+)
+
+// ConnectDB establishes a connection to the PostgreSQL database
+func ConnectDB(connectionString string) (*sql.DB, error) {
+    db, err := sql.Open("postgres", connectionString)
+    if err != nil {
+        return nil, err
+    }
+    
+    // Test the connection
+    if err := db.Ping(); err != nil {
+        return nil, err
+    }
+    
+    return db, nil
+}
+```
+
+```go
+// Path: internal/repository/postgres/user_repo.go
+package postgres
+
+import (
+    "context"
+    "database/sql"
+    "errors"
+    
+    "github.com/duraclim/my-service/internal/domain/entity"
+)
+
+// UserRepository is a PostgreSQL implementation of the user repository
+type UserRepository struct {
+    db *sql.DB
+}
+
+// NewUserRepository creates a new PostgreSQL user repository
+func NewUserRepository(db *sql.DB) *UserRepository {
+    return &UserRepository{
+        db: db,
+    }
+}
+
+// Create adds a new user to the database
+func (r *UserRepository) Create(ctx context.Context, user *entity.User) error {
+    query := `
+        INSERT INTO users (id, email, name, role, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
+    `
+    
+    _, err := r.db.ExecContext(
+        ctx,
+        query,
+        user.ID,
+        user.Email,
+        user.Name,
+        user.Role,
+        user.CreatedAt,
+        user.UpdatedAt,
+    )
+    
+    return err
+}
+
+// GetByID retrieves a user by ID
+func (r *UserRepository) GetByID(ctx context.Context, id string) (*entity.User, error) {
+    query := `
+        SELECT id, email, name, role, created_at, updated_at, deleted_at
+        FROM users
+        WHERE id = $1 AND deleted_at IS NULL
+    `
+    
+    var user entity.User
+    var deletedAt sql.NullTime
+    
+    err := r.db.QueryRowContext(ctx, query, id).Scan(
+        &user.ID,
+        &user.Email,
+        &user.Name,
+        &user.Role,
+        &user.CreatedAt,
+        &user.UpdatedAt,
+        &deletedAt,
+    )
+    
+    if err != nil {
+        if errors.Is(err, sql.ErrNoRows) {
+            return nil, errors.New("user not found")
+        }
+        return nil, err
+    }
+    
+    if deletedAt.Valid {
+        user.DeletedAt = &deletedAt.Time
+    }
+    
+    return &user, nil
+}
+
+// Additional repository methods...
+```
+
+#### Handler Layer
+
+The handler layer implements the API endpoints:
+
+```go
+// Path: internal/handler/http/router.go
+package http
+
+import (
+    "net/http"
+    
+    "github.com/gorilla/mux"
+    
+    "github.com/duraclim/my-service/internal/domain/service"
+    "github.com/duraclim/my-service/pkg/middleware"
+)
+
+// NewRouter creates a new HTTP router
+func NewRouter(userService service.UserService) http.Handler {
+    // Create router
+    router := mux.NewRouter()
+    
+    // Add middleware
+    router.Use(middleware.Logger)
+    router.Use(middleware.Recoverer)
+    
+    // Create handlers
+    userHandler := NewUserHandler(userService)
+    
+    // API routes
+    api := router.PathPrefix("/api/v1").Subrouter()
+    
+    // User routes
+    api.HandleFunc("/users", userHandler.Create).Methods("POST")
+    api.HandleFunc("/users/{id}", userHandler.GetByID).Methods("GET")
+    api.HandleFunc("/users", userHandler.List).Methods("GET")
+    api.HandleFunc("/users/{id}", userHandler.Update).Methods("PUT")
+    api.HandleFunc("/users/{id}", userHandler.Delete).Methods("DELETE")
+    
+    // Health check
+    router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+        w.WriteHeader(http.StatusOK)
+        w.Write([]byte("OK"))
+    }).Methods("GET")
+    
+    return router
+}
+```
+
+```go
+// Path: internal/handler/http/user_handler.go
+package http
+
+import (
+    "encoding/json"
+    "net/http"
+    "strconv"
+    
+    "github.com/gorilla/mux"
+    
+    "github.com/duraclim/my-service/internal/domain/entity"
+    "github.com/duraclim/my-service/internal/domain/service"
+)
+
+// UserHandler handles HTTP requests for user operations
+type UserHandler struct {
+    userService service.UserService
+}
+
+// NewUserHandler creates a new user handler
+func NewUserHandler(userService service.UserService) *UserHandler {
+    return &UserHandler{
+        userService: userService,
+    }
+}
+
+// Create handles user creation
+func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
+    var user entity.User
+    
+    // Decode request body
+    if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+        respondWithError(w, http.StatusBadRequest, "Invalid request payload")
+        return
+    }
+    
+    // Create user
+    if err := h.userService.CreateUser(r.Context(), &user); err != nil {
+        respondWithError(w, http.StatusInternalServerError, err.Error())
+        return
+    }
+    
+    // Respond with success
+    respondWithJSON(w, http.StatusCreated, user)
+}
+
+// GetByID handles user retrieval by ID
+func (h *UserHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+    vars := mux.Vars(r)
+    id := vars["id"]
+    
+    // Get user by ID
+    user, err := h.userService.GetUserByID(r.Context(), id)
+    if err != nil {
+        respondWithError(w, http.StatusNotFound, "User not found")
+        return
+    }
+    
+    // Respond with user data
+    respondWithJSON(w, http.StatusOK, user)
+}
+
+// List handles user listing with pagination
+func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
+    // Parse query parameters for pagination
+    limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+    page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+    
+    if limit <= 0 {
+        limit = 10 // Default limit
+    }
+    
+    if page <= 0 {
+        page = 1 // Default page
+    }
+    
+    offset := (page - 1) * limit
+    
+    // Get users with pagination
+    users, err := h.userService.ListUsers(r.Context(), limit, offset)
+    if err != nil {
+        respondWithError(w, http.StatusInternalServerError, err.Error())
+        return
+    }
+    
+    // Respond with users data
+    respondWithJSON(w, http.StatusOK, map[string]interface{}{
+        "users": users,
+        "pagination": map[string]int{
+            "limit": limit,
+            "page": page,
+        },
+    })
+}
+
+// Additional handler methods...
+
+// Helper functions for responses
+func respondWithError(w http.ResponseWriter, code int, message string) {
+    respondWithJSON(w, code, map[string]string{"error": message})
+}
+
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+    response, _ := json.Marshal(payload)
+    
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(code)
+    w.Write(response)
+}
+```
+
+### pkg
+
+The `pkg` directory contains libraries that can be imported by external applications:
+
+```
+pkg/
+├── middleware/               # HTTP middleware
+│   ├── logger.go             # Logging middleware
+│   ├── recoverer.go          # Panic recovery middleware
+│   └── auth.go               # Authentication middleware
+├── logger/                   # Logging package
+│   └── logger.go             # Logger implementation
+├── validator/                # Input validation
+│   └── validator.go          # Validation helpers
+└── errors/                   # Error handling
+    └── errors.go             # Custom error types
+```
+
+An example of a middleware implementation:
+
+```go
+// Path: pkg/middleware/logger.go
+package middleware
+
+import (
+    "log"
+    "net/http"
+    "time"
+)
+
+// Logger is a middleware that logs HTTP requests
+func Logger(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        start := time.Now()
+        
+        // Create a custom response writer to capture status code
+        rw := newResponseWriter(w)
+        
+        // Call the next handler
+        next.ServeHTTP(rw, r)
+        
+        // Log request details
+        log.Printf(
+            "%s %s %s %d %s",
+            r.RemoteAddr,
+            r.Method,
+            r.URL.Path,
+            rw.status,
+            time.Since(start),
+        )
+    })
+}
+
+// Custom response writer to capture status code
+type responseWriter struct {
+    http.ResponseWriter
+    status int
+}
+
+func newResponseWriter(w http.ResponseWriter) *responseWriter {
+    return &responseWriter{w, http.StatusOK}
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+    rw.status = code
+    rw.ResponseWriter.WriteHeader(code)
+}
+```
+
+### api
+
+The `api` directory contains API definitions and documentation:
+
+```
+api/
+├── openapi/                  # OpenAPI (Swagger) definitions
+│   └── api.yaml              # OpenAPI specification
+└── proto/                    # Protocol Buffers definitions (for gRPC)
+    └── service.proto         # Service definition
+```
+
+An example OpenAPI specification:
+
+```yaml
+# Path: api/openapi/api.yaml
+openapi: 3.0.0
+info:
+  title: My Service API
+  description: API for my Go service
+  version: 1.0.0
+servers:
+  - url: https://api.example.com/v1
+    description: Production server
+  - url: https://api-staging.example.com/v1
+    description: Staging server
+paths:
+  /users:
+    get:
+      summary: List users
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+    post:
+      summary: Create a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserInput'
+      responses:
+        '201':
+          description: Created user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+    UserInput:
+      type: object
+      required:
+        - email
+        - name
+        - role
+      properties:
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [admin, user]
+    Pagination:
+      type: object
+      properties:
+        limit:
+          type: integer
+        page:
+          type: integer
+```
+
+### config
+
+The `config` directory contains configuration code:
+
+```
+config/
+├── config.go                 # Configuration loading
+└── config.yaml               # Configuration file
+```
+
+```go
+// Path: config/config.go
+package config
+
+import (
+    "fmt"
+    "os"
+    "strconv"
+    "time"
+    
+    "github.com/joho/godotenv"
+)
+
+// Config holds application configuration
+type Config struct {
+    Environment   string
+    ServerAddress string
+    DatabaseURL   string
+    JWTSecret     string
+    JWTExpiry     time.Duration
+    LogLevel      string
+}
+
+// Load loads configuration from environment variables
+func Load() (*Config, error) {
+    // Load .env file if it exists
+    godotenv.Load()
+    
+    config := &Config{
+        Environment:   getEnv("ENVIRONMENT", "development"),
+        ServerAddress: getEnv("SERVER_ADDRESS", ":8080"),
+        DatabaseURL:   getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/myservice?sslmode=disable"),
+        JWTSecret:     getEnv("JWT_SECRET", "your-secret-key"),
+        JWTExpiry:     time.Duration(getEnvAsInt("JWT_EXPIRY", 24)) * time.Hour,
+        LogLevel:      getEnv("LOG_LEVEL", "info"),
+    }
+    
+    // Validate required configuration
+    if config.JWTSecret == "your-secret-key" && config.Environment != "development" {
+        return nil, fmt.Errorf("JWT_SECRET must be set in production")
+    }
+    
+    return config, nil
+}
+
+// Helper function to get an environment variable or a default value
+func getEnv(key, defaultValue string) string {
+    value := os.Getenv(key)
+    if value == "" {
+        return defaultValue
+    }
+    return value
+}
+
+// Helper function to get an environment variable as an integer
+func getEnvAsInt(key string, defaultValue int) int {
+    valueStr := getEnv(key, "")
+    if value, err := strconv.Atoi(valueStr); err == nil {
+        return value
+    }
+    return defaultValue
+}
+```
+
+### migrations
+
+The `migrations` directory contains database migration files:
+
+```
+migrations/
+├── 00001_create_users_table.sql  # Initial migration
+├── 00002_add_orders_table.sql    # Add orders table
+└── 00003_add_indexes.sql         # Add indexes
+```
+
+```sql
+-- Path: migrations/00001_create_users_table.sql
+-- Create users table
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    role TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    deleted_at TIMESTAMP
+);
+
+-- Create index on email
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+```
+
+### scripts
+
+The `scripts` directory contains utility scripts:
+
+```
+scripts/
+├── build.sh                  # Build script
+├── migrate.sh                # Database migration script
+└── seed.sh                   # Database seeding script
+```
+
+```bash
+#!/bin/bash
+# Path: scripts/migrate.sh
+
+# Run database migrations
+
+# Get directory of this script
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+MIGRATIONS_DIR="$DIR/../migrations"
+
+# Check if migrate tool is installed
+if ! command -v migrate &> /dev/null; then
+    echo "Error: migrate tool is not installed"
+    echo "Install it with: go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest"
+    exit 1
+fi
+
+# Get database URL from environment or use default
+DB_URL=${DATABASE_URL:-"postgres://postgres:postgres@localhost:5432/myservice?sslmode=disable"}
+
+# Run migrations
+echo "Running migrations from $MIGRATIONS_DIR..."
+migrate -path "$MIGRATIONS_DIR" -database "$DB_URL" up
+
+if [ $? -eq 0 ]; then
+    echo "Migrations completed successfully."
+else
+    echo "Migration failed."
+    exit 1
+fi
+```
+
+### Dockerfile
+
+The Dockerfile defines how to build a Docker image for the service:
+
+```dockerfile
+# Path: Dockerfile
+# Build stage
+FROM golang:1.19-alpine AS builder
+
+# Set working directory
+WORKDIR /app
+
+# Copy go module files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o api-server ./cmd/api
+
+# Final stage
+FROM alpine:3.17
+
+# Set working directory
+WORKDIR /app
+
+# Install CA certificates
+RUN apk --no-cache add ca-certificates
+
+# Copy the binary from builder
+COPY --from=builder /app/api-server .
+
+# Copy migrations
+COPY --from=builder /app/migrations ./migrations
+
+# Expose port
+EXPOSE 8080
+
+# Run the application
+CMD ["./api-server"]
+```
+
+### Makefile
+
+The Makefile defines common tasks for development and deployment:
+
+```makefile
+# Path: Makefile
+# Variables
+APP_NAME = my-service
+BUILD_DIR = build
+GO_FILES = $(shell find . -name "*.go" -not -path "./vendor/*")
+GOBIN = $(GOPATH)/bin
+
+# Environment variables
+include .env
+export
+
+# Default target
+.PHONY: all
+all: clean build
+
+# Clean build artifacts
+.PHONY: clean
+clean:
+	@echo "Cleaning build artifacts..."
+	@rm -rf $(BUILD_DIR)
+
+# Build the application
+.PHONY: build
+build:
+	@echo "Building $(APP_NAME)..."
+	@mkdir -p $(BUILD_DIR)
+	@go build -o $(BUILD_DIR)/api-server ./cmd/api
+	@go build -o $(BUILD_DIR)/worker ./cmd/worker
+	@echo "Build complete."
+
+# Run the application
+.PHONY: run
+run:
+	@echo "Running $(APP_NAME)..."
+	@go run ./cmd/api
+
+# Run tests
+.PHONY: test
+test:
+	@echo "Running tests..."
+	@go test -v ./...
+
+# Run linting
+.PHONY: lint
+lint:
+	@echo "Running linter..."
+	@golangci-lint run
+
+# Run database migrations
+.PHONY: migrate
+migrate:
+	@echo "Running database migrations..."
+	@./scripts/migrate.sh
+
+# Generate OpenAPI documentation
+.PHONY: docs
+docs:
+	@echo "Generating API documentation..."
+	@swag init -g cmd/api/main.go -o api/docs
+
+# Build Docker image
+.PHONY: docker-build
+docker-build:
+	@echo "Building Docker image..."
+	@docker build -t $(APP_NAME) .
+
+# Run Docker container
+.PHONY: docker-run
+docker-run:
+	@echo "Running Docker container..."
+	@docker run -p 8080:8080 $(APP_NAME)
+
+# Help target
+.PHONY: help
+help:
+	@echo "Available targets:"
+	@echo "  all          - Clean and build the application"
+	@echo "  clean        - Clean build artifacts"
+	@echo "  build        - Build the application"
+	@echo "  run          - Run the application"
+	@echo "  test         - Run tests"
+	@echo "  lint         - Run linting"
+	@echo "  migrate      - Run database migrations"
+	@echo "  docs         - Generate OpenAPI documentation"
+	@echo "  docker-build - Build Docker image"
+	@echo "  docker-run   - Run Docker container"
+```
+
+## Project Templates
+
+To ensure consistency across projects, we have created a starter template that implements the structure outlined in this document. This template includes all the necessary configuration files, folder structure, and baseline components.
+
+### Using the Project Template
+
+To create a new Go project using our template:
+
+```bash
+# Clone the template repository
+git clone https://github.com/duraclim/go-template.git my-new-service
+
+# Navigate to the project directory
+cd my-new-service
+
+# Remove Git history
+rm -rf .git
+
+# Initialize a new Git repository
+git init
+
+# Customize the project
+# ...
+
+# Build and run the project
+make build
+make run
+```
+
+## Adding New Features
+
+When adding new features to an existing project, follow these guidelines to maintain the proper structure:
+
+<Steps>
+  <Step title="Define domain entities">
+    Add new entities in `internal/domain/entity`
+    ```go
+    // internal/domain/entity/product.go
+    package entity
+
+    import "time"
+
+    type Product struct {
+        ID          string     `json:"id"`
+        Name        string     `json:"name"`
+        Description string     `json:"description"`
+        Price       float64    `json:"price"`
+        CreatedAt   time.Time  `json:"created_at"`
+        UpdatedAt   time.Time  `json:"updated_at"`
+        DeletedAt   *time.Time `json:"deleted_at,omitempty"`
+    }
+    ```
+  </Step>
+  
+  <Step title="Define repository interfaces">
+    Add repository interfaces in `internal/domain/repository`
+    ```go
+    // internal/domain/repository/product.go
+    package repository
+
+    import (
+        "context"
+        
+        "github.com/duraclim/my-service/internal/domain/entity"
+    )
+
+    type ProductRepository interface {
+        Create(ctx context.Context, product *entity.Product) error
+        GetByID(ctx context.Context, id string) (*entity.Product, error)
+        List(ctx context.Context, limit, offset int) ([]*entity.Product, error)
+        Update(ctx context.Context, product *entity.Product) error
+        Delete(ctx context.Context, id string) error
+    }
+    ```
+  </Step>
+  
+  <Step title="Define service interfaces">
+    Add service interfaces in `internal/domain/service`
+    ```go
+    // internal/domain/service/product.go
+    package service
+
+    import (
+        "context"
+        
+        "github.com/duraclim/my-service/internal/domain/entity"
+    )
+
+    type ProductService interface {
+        CreateProduct(ctx context.Context, product *entity.Product) error
+        GetProductByID(ctx context.Context, id string) (*entity.Product, error)
+        ListProducts(ctx context.Context, limit, offset int) ([]*entity.Product, error)
+        UpdateProduct(ctx context.Context, product *entity.Product) error
+        DeleteProduct(ctx context.Context, id string) error
+    }
+    ```
+  </Step>
+  
+  <Step title="Implement repository">
+    Add repository implementation in `internal/repository/postgres`
+    ```go
+    // internal/repository/postgres/product_repo.go
+    package postgres
+
+    import (
+        "context"
+        "database/sql"
+        
+        "github.com/duraclim/my-service/internal/domain/entity"
+    )
+
+    type ProductRepository struct {
+        db *sql.DB
+    }
+
+    func NewProductRepository(db *sql.DB) *ProductRepository {
+        return &ProductRepository{db: db}
+    }
+
+    // Implement repository methods...
+    ```
+  </Step>
+  
+  <Step title="Implement service">
+    Add service implementation in `internal/service`
+    ```go
+    // internal/service/product_service.go
+    package service
+
+    import (
+        "context"
+        
+        "github.com/duraclim/my-service/internal/domain/entity"
+        "github.com/duraclim/my-service/internal/domain/repository"
+    )
+
+    type ProductService struct {
+        productRepo repository.ProductRepository
+    }
+
+    func NewProductService(productRepo repository.ProductRepository) *ProductService {
+        return &ProductService{productRepo: productRepo}
+    }
+
+    // Implement service methods...
+    ```
+  </Step>
+  
+  <Step title="Add HTTP handlers">
+    Add HTTP handlers in `internal/handler/http`
+    ```go
+    // internal/handler/http/product_handler.go
+    package http
+
+    import (
+        "encoding/json"
+        "net/http"
+        
+        "github.com/gorilla/mux"
+        
+        "github.com/duraclim/my-service/internal/domain/entity"
+        "github.com/duraclim/my-service/internal/domain/service"
+    )
+
+    type ProductHandler struct {
+        productService service.ProductService
+    }
+
+    func NewProductHandler(productService service.ProductService) *ProductHandler {
+        return &ProductHandler{productService: productService}
+    }
+
+    // Implement handler methods...
+    ```
+  </Step>
+  
+  <Step title="Update router">
+    Update the router in `internal/handler/http/router.go`
+    ```go
+    // Add to router.go
+    
+    // Create handlers
+    productHandler := NewProductHandler(productService)
+    
+    // Product routes
+    api.HandleFunc("/products", productHandler.Create).Methods("POST")
+    api.HandleFunc("/products/{id}", productHandler.GetByID).Methods("GET")
+    api.HandleFunc("/products", productHandler.List).Methods("GET")
+    api.HandleFunc("/products/{id}", productHandler.Update).Methods("PUT")
+    api.HandleFunc("/products/{id}", productHandler.Delete).Methods("DELETE")
+    ```
+  </Step>
+  
+  <Step title="Update main.go">
+    Add initialization code in `cmd/api/main.go`
+    ```go
+    // Add to main.go
+    
+    // Initialize repositories
+    productRepo := postgres.NewProductRepository(db)
+    
+    // Initialize services
+    productService := service.NewProductService(productRepo)
+    
+    // Initialize HTTP router with all services
+    router := http.NewRouter(userService, productService)
+    ```
+  </Step>
+  
+  <Step title="Add database migration">
+    Create a migration file in `migrations`
+    ```sql
+    -- migrations/00004_add_products_table.sql
+    CREATE TABLE IF NOT EXISTS products (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        price DECIMAL(10, 2) NOT NULL,
+        created_at TIMESTAMP NOT NULL,
+        updated_at TIMESTAMP NOT NULL,
+        deleted_at TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
+    ```
+  </Step>
+</Steps>
+
+## Best Practices
+
+### Package Organization
+
+1. **Package by feature** - Group related functionality together
+2. **Minimize dependencies** - Each package should have minimal dependencies on other packages
+3. **Maintain clear boundaries** - Keep clear separation between layers
+
+### Import Ordering
+
+Organize imports in the following order:
+
+1. Standard library packages
+2. Third-party packages
+3. Your own packages
+
+Example:
+
+```go
+import (
+    "context"
+    "database/sql"
+    "time"
+    
+    "github.com/google/uuid"
+    "github.com/lib/pq"
+    
+    "github.com/duraclim/my-service/internal/domain/entity"
+)
+```
+
+### Error Handling
+
+1. **Check errors immediately** - Handle errors right after the function call that might produce them
+2. **Provide context** - Add context when wrapping errors
+3. **Use custom error types** - Create custom error types for specific error cases
+
+### File Naming
+
+1. **Use snake_case** - Name files using snake_case
+2. **Be descriptive** - Use descriptive file names that indicate purpose
+3. **Group related files** - Keep related files in the same directory
+
+## Conclusion
+
+Following this standardized project structure ensures consistency across all Duraclim Go projects, making it easier for developers to navigate and contribute to multiple codebases. The structure is designed to be scalable, maintainable, and aligned with Go best practices.
+
+For additional details on specific components or patterns, refer to the following resources:
+
+- [Go Projects Overview](/projects/go/overview)
+- [Go Deployment](/projects/go/deployment)
+- [Effective Go](https://golang.org/doc/effective_go)
+- [Standard Go Project Layout](https://github.com/golang-standards/project-layout)

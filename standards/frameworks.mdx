@@ -1,0 +1,652 @@
+---
+title: Frameworks and Technologies
+description: Overview of the primary frameworks and technologies used at Duraclim IT
+icon: layer-group 
+---
+
+# Frameworks and Technologies
+
+This document provides an overview of the primary frameworks, libraries, and technologies used across Duraclim IT projects. Understanding our technology stack is essential for effective development and maintenance of our applications.
+
+<Frame>
+  <img src="/images/tech-stack-overview.png" alt="Technology Stack Overview" className="rounded-lg" />
+</Frame>
+
+## Frontend Technologies
+
+### Next.js
+
+<Card>
+  Next.js is our primary frontend framework, built on top of React. We use it for its powerful features including server-side rendering, static site generation, and API routes.
+  
+  **Version**: 14.x
+  
+  **Documentation**: [Next.js Docs](https://nextjs.org/docs)
+</Card>
+
+#### Key Features We Use
+
+<AccordionGroup>
+  <Accordion title="App Router">
+    The newer App Router architecture that provides:
+    - Nested layouts and routes
+    - Server Components
+    - Streaming and Suspense
+    - Data fetching within components
+  </Accordion>
+  
+  <Accordion title="Server Components">
+    React Server Components that allow:
+    - Rendering on the server for improved performance
+    - Reduced JavaScript bundle size
+    - Direct backend data access without API endpoints
+  </Accordion>
+  
+  <Accordion title="API Routes">
+    Serverless functions that allow us to create API endpoints as part of our Next.js application, eliminating the need for a separate API server for many use cases.
+  </Accordion>
+  
+  <Accordion title="Internationalization">
+    Built-in i18n routing and translation support, which we use for our multilingual applications (English and French).
+  </Accordion>
+</AccordionGroup>
+
+### React
+
+<Card>
+  React is the foundation of our frontend development, allowing us to build reusable UI components.
+  
+  **Version**: 18.x
+  
+  **Documentation**: [React Docs](https://react.dev/)
+</Card>
+
+#### React Patterns We Use
+
+- Functional Components with Hooks
+- Context API for state sharing
+- Custom hooks for reusable logic
+- Error boundaries for graceful error handling
+- Suspense for loading states
+
+### TypeScript
+
+<Card>
+  TypeScript enhances our JavaScript code with static type checking, improving code quality and developer experience.
+  
+  **Version**: 5.x
+  
+  **Documentation**: [TypeScript Handbook](https://www.typescriptlang.org/docs/)
+</Card>
+
+#### TypeScript Standards
+
+- Strict type checking enabled
+- Interface-based types for complex objects
+- Generic types for reusable components
+- Utility types for type transformations
+- Type guards for runtime type checking
+
+### UI Libraries
+
+<CardGroup cols={2}>
+  <Card title="Tailwind CSS" icon="paintbrush">
+    Utility-first CSS framework for rapid UI development
+    
+    **Version**: 3.x
+    
+    **Documentation**: [Tailwind CSS Docs](https://tailwindcss.com/docs)
+  </Card>
+  
+  <Card title="shadcn/ui" icon="grid-2">
+    Our component library built on Radix UI and Tailwind
+    
+    **Repository**: [shadcn/ui](https://ui.shadcn.com/)
+  </Card>
+</CardGroup>
+
+## Backend Technologies
+
+### Go (Golang)
+
+<Card>
+  Go is our primary language for backend microservices, chosen for its performance, simplicity, and strong concurrency support.
+  
+  **Version**: 1.19+
+  
+  **Documentation**: [Go Documentation](https://golang.org/doc/)
+</Card>
+
+#### Key Go Packages We Use
+
+<AccordionGroup>
+  <Accordion title="Standard Library">
+    We extensively use Go's rich standard library, including:
+    - `net/http` for HTTP servers and clients
+    - `database/sql` for database operations
+    - `encoding/json` for JSON processing
+    - `context` for request context management
+    - `time` for time manipulation
+  </Accordion>
+  
+  <Accordion title="Third-Party Libraries">
+    - `github.com/gorilla/mux` for HTTP routing
+    - `github.com/lib/pq` for PostgreSQL driver
+    - `github.com/golang-migrate/migrate` for database migrations
+    - `github.com/go-redis/redis` for Redis client
+    - `github.com/stretchr/testify` for testing
+  </Accordion>
+</AccordionGroup>
+
+### Python
+
+<Card>
+  Python is used for specific data processing tasks, automation scripts, and integration with data science libraries.
+  
+  **Version**: 3.10+
+  
+  **Documentation**: [Python Documentation](https://docs.python.org/3/)
+</Card>
+
+#### Key Python Libraries
+
+- `pandas` for data manipulation and analysis
+- `requests` for HTTP requests
+- `FastAPI` for lightweight API development
+- `SQLAlchemy` for database ORM
+- `pytest` for testing
+
+## Database Technologies
+
+### PostgreSQL
+
+<Card>
+  PostgreSQL is our primary relational database, used for structured data storage.
+  
+  **Version**: 15.x
+  
+  **Documentation**: [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+</Card>
+
+#### PostgreSQL Features We Use
+
+- JSON/JSONB data types for flexible schema
+- Array types for multi-value fields
+- Full-text search capabilities
+- Window functions for analytics
+- Triggers and stored procedures
+- Materialized views for performance
+
+### Supabase
+
+<Card>
+  Supabase provides a managed PostgreSQL database with additional features like authentication, storage, and real-time capabilities.
+  
+  **Documentation**: [Supabase Documentation](https://supabase.com/docs)
+</Card>
+
+#### Supabase Features We Use
+
+- Authentication and user management
+- Row-level security policies
+- Storage for files and assets
+- Realtime subscriptions
+- REST and GraphQL APIs
+- Edge functions
+
+### Redis
+
+<Card>
+  Redis is used for caching, session storage, and as a message broker.
+  
+  **Version**: 6.x+
+  
+  **Documentation**: [Redis Documentation](https://redis.io/documentation)
+</Card>
+
+#### Redis Use Cases
+
+- API response caching
+- Session storage
+- Rate limiting
+- Geospatial operations
+- Task queues
+- Pub/Sub messaging
+
+## DevOps and Infrastructure
+
+### Docker
+
+<Card>
+  Docker is used for containerizing our applications, ensuring consistency across development, testing, and production environments.
+  
+  **Documentation**: [Docker Documentation](https://docs.docker.com/)
+</Card>
+
+#### Docker Usage
+
+```dockerfile
+# Example Dockerfile for Next.js application
+FROM node:18-alpine AS base
+
+# Install dependencies
+FROM base AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Build the application
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN npm run build
+
+# Production image
+FROM base AS runner
+WORKDIR /app
+ENV NODE_ENV production
+
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
+USER node
+EXPOSE 3000
+CMD ["node", "server.js"]
+```
+
+### AWS
+
+<Card>
+  Amazon Web Services is our primary cloud provider, where we host most of our production infrastructure.
+  
+  **Documentation**: [AWS Documentation](https://docs.aws.amazon.com/)
+</Card>
+
+#### AWS Services We Use
+
+- **ECS** (Elastic Container Service) for container orchestration
+- **RDS** for managed PostgreSQL databases
+- **S3** for object storage
+- **CloudFront** for CDN
+- **Lambda** for serverless functions
+- **CloudWatch** for monitoring and logging
+
+### GitHub Actions
+
+<Card>
+  GitHub Actions is our primary CI/CD platform, automating our build, test, and deployment processes.
+  
+  **Documentation**: [GitHub Actions Documentation](https://docs.github.com/en/actions)
+</Card>
+
+#### Example Workflow
+
+```yaml
+# Example GitHub Actions workflow
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Run tests
+        run: npm test
+        
+      - name: Build
+        run: npm run build
+        
+      - name: Deploy
+        uses: some-deploy-action@v1
+        with:
+          api-key: ${{ secrets.DEPLOY_API_KEY }}
+```
+
+## Integration and Automation
+
+### Zapier and Pabbly
+
+<Card>
+  Zapier and Pabbly are used for creating no-code integrations between our applications and third-party services.
+  
+  **Documentation**: 
+  - [Zapier Documentation](https://zapier.com/help)
+  - [Pabbly Documentation](https://www.pabbly.com/connect/docs/)
+</Card>
+
+#### Use Cases
+
+- CRM integration (Pipedrive)
+- Field service management (Jobber)
+- Notifications via Slack
+- Email automation
+- Form submission processing
+- Data synchronization
+
+### GraphQL
+
+<Card>
+  GraphQL is used for efficient data fetching in some of our applications, particularly for third-party API integration.
+  
+  **Documentation**: [GraphQL Documentation](https://graphql.org/learn/)
+</Card>
+
+#### GraphQL Implementation
+
+```typescript
+// Example GraphQL client usage
+import { gql } from 'graphql-request'
+import { graphQLClient } from '@/lib/graphql'
+
+const GET_USER_QUERY = gql`
+  query GetUser($id: ID!) {
+    user(id: $id) {
+      id
+      name
+      email
+      role
+    }
+  }
+`
+
+async function getUser(id: string) {
+  const data = await graphQLClient.request(GET_USER_QUERY, { id })
+  return data.user
+}
+```
+
+## Testing Technologies
+
+### Jest
+
+<Card>
+  Jest is our primary testing framework for JavaScript and TypeScript code.
+  
+  **Version**: 29.x
+  
+  **Documentation**: [Jest Documentation](https://jestjs.io/docs/getting-started)
+</Card>
+
+#### Example Test
+
+```typescript
+// Example Jest test
+import { calculateTotal } from '@/lib/utils/calculator'
+
+describe('calculateTotal', () => {
+  it('should calculate the total correctly', () => {
+    const items = [
+      { price: 100, quantity: 2 },
+      { price: 50, quantity: 1 }
+    ]
+    
+    expect(calculateTotal(items)).toBe(250)
+  })
+  
+  it('should return 0 for empty items', () => {
+    expect(calculateTotal([])).toBe(0)
+  })
+})
+```
+
+### Playwright
+
+<Card>
+  Playwright is used for end-to-end testing of our web applications.
+  
+  **Version**: 1.x
+  
+  **Documentation**: [Playwright Documentation](https://playwright.dev/docs/intro)
+</Card>
+
+#### Example E2E Test
+
+```typescript
+// Example Playwright test
+import { test, expect } from '@playwright/test'
+
+test('user can log in', async ({ page }) => {
+  await page.goto('/login')
+  
+  await page.fill('input[name="email"]', 'test@example.com')
+  await page.fill('input[name="password"]', 'password123')
+  await page.click('button[type="submit"]')
+  
+  await expect(page).toHaveURL('/dashboard')
+  await expect(page.locator('h1')).toContainText('Dashboard')
+})
+```
+
+## Monitoring and Analytics
+
+### Sentry
+
+<Card>
+  Sentry is used for error tracking and performance monitoring.
+  
+  **Documentation**: [Sentry Documentation](https://docs.sentry.io/)
+</Card>
+
+#### Sentry Integration
+
+```typescript
+// Example Sentry configuration in Next.js
+// Path: sentry.client.config.ts
+import * as Sentry from '@sentry/nextjs'
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  tracesSampleRate: 1.0,
+  environment: process.env.NEXT_PUBLIC_ENV,
+})
+```
+
+### Custom Analytics
+
+<Card>
+  We've built custom analytics solutions for business-specific metrics and reporting.
+</Card>
+
+#### Analytics Features
+
+- Revenue tracking
+- Sales performance analysis
+- Service usage metrics
+- Travel efficiency analysis
+- User behavior tracking
+
+## Version Control and Collaboration
+
+### Git and GitHub
+
+<Card>
+  Git is our version control system, with GitHub as our hosting platform and project management tool.
+  
+  **Documentation**: 
+  - [Git Documentation](https://git-scm.com/doc)
+  - [GitHub Documentation](https://docs.github.com/en)
+</Card>
+
+#### Git Workflow
+
+See our detailed [Git Workflow](/development/git-workflow) document for our branching strategy and contribution guidelines.
+
+### Slack
+
+<Card>
+  Slack is our primary communication platform for team collaboration.
+</Card>
+
+#### Key Channels
+
+See our [Team Communication Guidelines](/communication/guidelines) for details on our Slack usage.
+
+## Technology Selection Criteria
+
+When evaluating new technologies for adoption, we consider the following criteria:
+
+1. **Alignment with business needs** - Does it solve a real problem?
+2. **Developer productivity** - Will it make our team more efficient?
+3. **Learning curve** - How quickly can the team adapt to it?
+4. **Community support** - Is it well-maintained with an active community?
+5. **Performance** - Will it perform well for our use cases?
+6. **Security** - Does it have good security practices?
+7. **Scalability** - Will it scale with our growth?
+8. **Integration** - Does it work well with our existing stack?
+
+## Technology Roadmap
+
+<CardGroup cols={3}>
+  <Card title="Current" icon="check">
+    - Next.js 14
+    - Go 1.19
+    - PostgreSQL 15
+    - TypeScript 5
+    - Tailwind CSS 3
+  </Card>
+  
+  <Card title="Exploring" icon="magnifying-glass">
+    - tRPC for type-safe APIs
+    - Go 1.21
+    - Bun for JavaScript runtime
+    - Redis Stack for advanced caching
+    - Edge Functions
+  </Card>
+  
+  <Card title="Phasing Out" icon="arrow-right-from-bracket">
+    - REST-only APIs (moving to GraphQL/tRPC)
+    - Manual deployment processes
+    - Next.js Pages Router
+    - jQuery (legacy code)
+  </Card>
+</CardGroup>
+
+## Learning Resources
+
+For team members looking to learn more about our core technologies, we recommend the following resources:
+
+### Next.js and React
+
+- [Next.js Learn](https://nextjs.org/learn) - Official Next.js tutorial
+- [React Docs Beta](https://react.dev/) - New React documentation
+- [Josh Comeau's CSS-for-JS course](https://css-for-js.dev/) - Great for frontend developers
+
+### Go
+
+- [Go by Example](https://gobyexample.com/) - Practical introduction to Go
+- [Effective Go](https://golang.org/doc/effective_go) - Best practices for writing Go
+- [Go Web Examples](https://gowebexamples.com/) - Examples of web applications in Go
+
+### TypeScript
+
+- [TypeScript Handbook](https://www.typescriptlang.org/docs/handbook/intro.html) - Official TypeScript documentation
+- [Total TypeScript](https://www.totaltypescript.com/) - Advanced TypeScript tutorials
+- [Type Challenges](https://github.com/type-challenges/type-challenges) - Practice TypeScript types
+
+### Database
+
+- [PostgreSQL Tutorial](https://www.postgresqltutorial.com/) - Comprehensive PostgreSQL resource
+- [Supabase Crash Course](https://www.youtube.com/watch?v=dU7GwCOgvNY) - Quick introduction to Supabase
+- [SQL for Devs](https://sqlfordevs.com/) - SQL tutorials for developers
+
+## Technology Decision Records
+
+We document important technology decisions using Technology Decision Records (TDRs). These can be found in the `docs/tdr` directory of our main repositories.
+
+Example TDR structure:
+
+```markdown
+# TDR-001: Adoption of Next.js App Router
+
+## Status
+Accepted
+
+## Context
+We needed to modernize our frontend architecture to support better performance, 
+improved developer experience, and more efficient data loading patterns.
+
+## Decision
+We will adopt the Next.js App Router for all new projects and gradually migrate 
+existing projects from the Pages Router.
+
+## Consequences
+- Better performance through React Server Components
+- Improved developer experience with more intuitive routing
+- Need for team training on the new paradigm
+- Temporary maintenance of two routing patterns during transition
+```
+
+## Technology Evaluation Process
+
+When evaluating new technologies, we follow this process:
+
+<Steps>
+  <Step title="Identify need">
+    Clearly articulate the problem or opportunity the technology addresses
+  </Step>
+  
+  <Step title="Research options">
+    Research potential solutions and create a shortlist
+  </Step>
+  
+  <Step title="Create evaluation criteria">
+    Define specific criteria for evaluation based on our needs
+  </Step>
+  
+  <Step title="Proof of concept">
+    Build a small proof of concept to test the technology
+  </Step>
+  
+  <Step title="Team review">
+    Present findings to the team for feedback
+  </Step>
+  
+  <Step title="Decision and documentation">
+    Make a decision and document it as a TDR
+  </Step>
+  
+  <Step title="Implementation plan">
+    Create a plan for adoption, including training and migration
+  </Step>
+</Steps>
+
+## Framework-Specific Guides
+
+For detailed implementation guidelines for each framework, please see the following guides:
+
+- [Next.js Development Guide](/standards/nextjs)
+- [Go Development Guide](/standards/go)
+- [TypeScript Standards](/standards/typescript)
+- [Database Design Guide](/standards/database)
+- [API Design Standards](/api/standards)
+
+## Technology Governance
+
+To ensure consistent and effective use of our technology stack, we have the following governance practices:
+
+1. **Regular tech stack reviews** - Quarterly reviews of our technology stack
+2. **Architecture decision reviews** - Team reviews of major architecture decisions
+3. **Technical debt tracking** - Proactive identification and management of technical debt
+4. **Skill development** - Regular training and learning opportunities for the team
+5. **Standards documentation** - Maintaining up-to-date documentation of our technology standards
+
+## Conclusion
+
+Our technology stack is designed to balance innovation with stability, allowing us to deliver high-quality solutions efficiently. By maintaining a well-documented and carefully governed technology ecosystem, we can focus on building great products without being distracted by unnecessary complexity or compatibility issues.
+
+If you have questions about our technology stack or suggestions for improvement, please share them in the #it-discussions Slack channel.

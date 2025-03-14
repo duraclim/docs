@@ -1,0 +1,653 @@
+---
+title: API Authentication
+description: Authentication mechanisms and security practices for Duraclim APIs
+icon: lock
+---
+
+# API Authentication
+
+This document outlines the authentication mechanisms used across Duraclim's API ecosystem, including setup instructions, security best practices, and implementation examples.
+
+<Frame>
+  <img src="/images/api-authentication-overview.png" alt="API Authentication Overview" className="rounded-lg" />
+</Frame>
+
+## Authentication Methods
+
+We use different authentication methods depending on the API context:
+
+<CardGroup cols={3}>
+  <Card title="Supabase Auth" icon="shield-check">
+    User authentication via Supabase for web applications
+  </Card>
+  
+  <Card title="JWT Tokens" icon="key">
+    Token-based authentication for service-to-service communication
+  </Card>
+  
+  <Card title="API Keys" icon="barcode">
+    API key authentication for third-party integrations
+  </Card>
+</CardGroup>
+
+## Supabase Authentication
+
+For web applications, we leverage Supabase Auth, which provides:
+
+- User authentication with multiple providers (email/password, Google, magic link)
+- Session management with JWT tokens
+- Role-based access control
+- Row-level security in the database
+
+### Client-Side Implementation
+
+```typescript
+// Path: lib/supabase/client.ts
+import { createBrowserClient } from '@supabase/ssr'
+
+export const createClient = () => {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
+```
+
+### Server-Side Implementation
+
+```typescript
+// Path: lib/supabase/server.ts
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+
+export function createClient() {
+  const cookieStore = cookies()
+  
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name) {
+          return cookieStore.get(name)?.value
+        },
+        set(name, value, options) {
+          cookieStore.set(name, value, options)
+        },
+        remove(name, options) {
+          cookieStore.set(name, '', options)
+        }
+      }
+    }
+  )
+}
+```
+
+### Next.js API Route Authentication
+
+```typescript
+// Path: app/[locale]/api/protected-resource/route.ts
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+
+export async function GET(request: NextRequest) {
+  const supabase = createClient()
+  
+  // Check if the user is authenticated
+  const { data: { session } } = await supabase.auth.getSession()
+  
+  if (!session) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401 }
+    )
+  }
+  
+  // Get the user ID from the session
+  const userId = session.user.id
+  
+  // Check user permissions (optional)
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single()
+    
+  if (!profile || profile.role !== 'admin') {
+    return NextResponse.json(
+      { error: 'Forbidden' },
+      { status: 403 }
+    )
+  }
+  
+  // Process the authenticated request
+  return NextResponse.json({ 
+    message: 'Protected data',
+    data: { /* protected data */ } 
+  })
+}
+```
+
+### Middleware Authentication
+
+We use Next.js middleware for route protection:
+
+```typescript
+// Path: middleware.ts
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import { updateSession } from '@/lib/supabase/middleware'
+
+export async function middleware(request: NextRequest) {
+  // Update session with Supabase
+  const { response, session } = await updateSession(request)
+  
+  // Check if the route requires authentication
+  const authRoutes = ['/dashboard', '/settings', '/calculator']
+  const requiresAuth = authRoutes.some(
+    route => request.nextUrl.pathname.startsWith(route)
+  )
+  
+  // Redirect to login if authentication is required but not present
+  if (requiresAuth && !session) {
+    const redirectUrl = new URL('/login', request.url)
+    redirectUrl.searchParams.set('redirect', request.nextUrl.pathname)
+    return NextResponse.redirect(redirectUrl)
+  }
+  
+  return response
+}
+
+export const config = {
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|login|api/auth).*)',
+  ],
+}
+```
+
+## JWT Authentication for Services
+
+For service-to-service communication, especially with our Go microservices, we use JWT-based authentication:
+
+### Token Generation (Go)
+
+```go
+// Path: src/api/resource/token/handler.go
+package token
+
+import (
+    "net/http"
+    "time"
+    
+    "github.com/golang-jwt/jwt/v4"
+)
+
+type TokenClaims struct {
+    ClientID string `json:"client_id"`
+    jwt.RegisteredClaims
+}
+
+func (h *Handler) HandleCreateToken(w http.ResponseWriter, r *http.Request) {
+    // Parse request body
+    var req CreateTokenRequest
+    err := json.NewDecoder(r.Body).Decode(&req)
+    if err != nil {
+        h.RespondWithError(w, http.StatusBadRequest, "Invalid request payload")
+        return
+    }
+    
+    // Validate client credentials
+    client, err := h.repository.ValidateClient(req.ClientID, req.Secret)
+    if err != nil || client == nil {
+        h.RespondWithError(w, http.StatusUnauthorized, "Invalid credentials")
+        return
+    }
+    
+    // Create token expiration
+    expiresAt := time.Now().Add(24 * time.Hour)
+    
+    // Create JWT claims
+    claims := TokenClaims{
+        ClientID: client.ID,
+        RegisteredClaims: jwt.RegisteredClaims{
+            ExpiresAt: jwt.NewNumericDate(expiresAt),
+            IssuedAt:  jwt.NewNumericDate(time.Now()),
+            Issuer:    "duraclim-api",
+        },
+    }
+    
+    // Create token
+    token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+    
+    // Sign token
+    tokenString, err := token.SignedString([]byte(h.config.JWTSecret))
+    if err != nil {
+        h.RespondWithError(w, http.StatusInternalServerError, "Error generating token")
+        return
+    }
+    
+    // Store token in database
+    err = h.repository.StoreToken(client.ID, tokenString, expiresAt)
+    if err != nil {
+        h.RespondWithError(w, http.StatusInternalServerError, "Error storing token")
+        return
+    }
+    
+    // Return token
+    h.RespondWithJSON(w, http.StatusOK, map[string]string{
+        "token": tokenString,
+        "expires_at": expiresAt.Format(time.RFC3339),
+    })
+}
+```
+
+### Token Validation (Go)
+
+```go
+// Path: src/api/middleware/auth.go
+package middleware
+
+import (
+    "context"
+    "net/http"
+    "strings"
+    
+    "github.com/golang-jwt/jwt/v4"
+)
+
+// AuthMiddleware validates JWT tokens
+func AuthMiddleware(jwtSecret string) func(http.Handler) http.Handler {
+    return func(next http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            // Extract token from Authorization header
+            authHeader := r.Header.Get("Authorization")
+            if authHeader == "" {
+                http.Error(w, "Missing Authorization header", http.StatusUnauthorized)
+                return
+            }
+            
+            // Format: "Bearer {token}"
+            parts := strings.Split(authHeader, " ")
+            if len(parts) != 2 || parts[0] != "Bearer" {
+                http.Error(w, "Invalid Authorization header format", http.StatusUnauthorized)
+                return
+            }
+            
+            tokenStr := parts[1]
+            
+            // Parse and validate token
+            token, err := jwt.ParseWithClaims(
+                tokenStr,
+                &TokenClaims{},
+                func(token *jwt.Token) (interface{}, error) {
+                    // Validate signing method
+                    if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+                        return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+                    }
+                    
+                    return []byte(jwtSecret), nil
+                },
+            )
+            
+            if err != nil {
+                http.Error(w, "Invalid token", http.StatusUnauthorized)
+                return
+            }
+            
+            // Extract claims
+            claims, ok := token.Claims.(*TokenClaims)
+            if !ok || !token.Valid {
+                http.Error(w, "Invalid token claims", http.StatusUnauthorized)
+                return
+            }
+            
+            // Add claims to request context
+            ctx := context.WithValue(r.Context(), "clientID", claims.ClientID)
+            
+            // Call the next handler with the updated context
+            next.ServeHTTP(w, r.WithContext(ctx))
+        })
+    }
+}
+```
+
+## API Key Authentication
+
+For third-party integrations and public APIs, we use API key authentication:
+
+### API Key Generation
+
+```typescript
+// Path: lib/api-keys/generate.ts
+import { createClient } from '@/lib/supabase/server'
+import { randomBytes } from 'crypto'
+
+export async function generateApiKey(userId: string, name: string, permissions: string[]) {
+  // Generate a random API key
+  const apiKey = `dk_${randomBytes(24).toString('hex')}`
+  
+  // Hash the API key for storage (never store raw API keys)
+  const hashedKey = await hashApiKey(apiKey)
+  
+  const supabase = createClient()
+  
+  // Store the hashed API key in the database
+  const { data, error } = await supabase
+    .from('api_keys')
+    .insert({
+      user_id: userId,
+      name,
+      key_hash: hashedKey,
+      permissions,
+      last_used_at: null,
+      expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year expiry
+    })
+    .select()
+    .single()
+    
+  if (error) {
+    throw new Error(`Failed to create API key: ${error.message}`)
+  }
+  
+  // Return the raw API key (this is the only time it will be available)
+  return {
+    id: data.id,
+    key: apiKey,
+    name: data.name,
+    permissions: data.permissions,
+    expires_at: data.expires_at,
+  }
+}
+
+async function hashApiKey(apiKey: string): Promise<string> {
+  // In a real implementation, use a proper hashing function like bcrypt
+  // This is a simplified example
+  const encoder = new TextEncoder()
+  const data = encoder.encode(apiKey)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+}
+```
+
+### API Key Validation
+
+```typescript
+// Path: lib/api-keys/validate.ts
+import { createClient } from '@/lib/supabase/server'
+
+export async function validateApiKey(apiKey: string): Promise<{
+  valid: boolean;
+  userId?: string;
+  permissions?: string[];
+}> {
+  if (!apiKey || !apiKey.startsWith('dk_')) {
+    return { valid: false }
+  }
+  
+  // Hash the provided API key
+  const hashedKey = await hashApiKey(apiKey)
+  
+  const supabase = createClient()
+  
+  // Look up the API key in the database
+  const { data, error } = await supabase
+    .from('api_keys')
+    .select('id, user_id, permissions, expires_at')
+    .eq('key_hash', hashedKey)
+    .single()
+    
+  if (error || !data) {
+    return { valid: false }
+  }
+  
+  // Check if the API key has expired
+  if (new Date(data.expires_at) < new Date()) {
+    return { valid: false }
+  }
+  
+  // Update last used timestamp
+  await supabase
+    .from('api_keys')
+    .update({ last_used_at: new Date().toISOString() })
+    .eq('id', data.id)
+  
+  return {
+    valid: true,
+    userId: data.user_id,
+    permissions: data.permissions,
+  }
+}
+```
+
+### API Key Middleware
+
+```typescript
+// Path: lib/middlewares/api-key-auth.ts
+import { NextRequest, NextResponse } from 'next/server'
+import { validateApiKey } from '@/lib/api-keys/validate'
+
+export async function apiKeyAuth(req: NextRequest, handler: Function) {
+  // Extract API key from Authorization header
+  const apiKey = req.headers.get('x-api-key')
+  
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: 'API key required' },
+      { status: 401 }
+    )
+  }
+  
+  // Validate API key
+  const result = await validateApiKey(apiKey)
+  
+  if (!result.valid) {
+    return NextResponse.json(
+      { error: 'Invalid API key' },
+      { status: 401 }
+    )
+  }
+  
+  // Check permissions (if required)
+  if (result.permissions) {
+    // Implement permission checking logic here
+  }
+  
+  // Add user context to the request
+  const context = {
+    userId: result.userId,
+    permissions: result.permissions,
+  }
+  
+  // Call the handler with the context
+  return handler(req, context)
+}
+```
+
+## Authentication Workflow Examples
+
+### Web Application Login Flow
+
+<Steps>
+  <Step title="User navigates to login page">
+    The user accesses the login page at `/login`
+  </Step>
+  
+  <Step title="User enters credentials">
+    The user enters their email and password or chooses a social login option
+  </Step>
+  
+  <Step title="Authentication request">
+    The frontend sends the credentials to Supabase Auth
+    
+    ```typescript
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password,
+    })
+    ```
+  </Step>
+  
+  <Step title="Session establishment">
+    Supabase creates a session and sets cookies containing JWT tokens
+  </Step>
+  
+  <Step title="Redirect to protected page">
+    The user is redirected to the protected page they were trying to access
+  </Step>
+</Steps>
+
+### Service-to-Service Authentication
+
+<Steps>
+  <Step title="Service A requests token">
+    Service A requests an authentication token from the token service
+    
+    ```
+    POST /api/tokens
+    {
+      "client_id": "service-a",
+      "secret": "service-a-secret"
+    }
+    ```
+  </Step>
+  
+  <Step title="Token service validates credentials">
+    The token service validates the client credentials against the database
+  </Step>
+  
+  <Step title="Token service generates JWT">
+    The token service generates a JWT with appropriate claims and expiration
+  </Step>
+  
+  <Step title="Service A receives token">
+    The token service returns the JWT to Service A
+    
+    ```json
+    {
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "expires_at": "2023-01-01T00:00:00Z"
+    }
+    ```
+  </Step>
+  
+  <Step title="Service A calls Service B">
+    Service A includes the JWT in the Authorization header when calling Service B
+    
+    ```
+    GET /api/resource
+    Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+    ```
+  </Step>
+  
+  <Step title="Service B validates token">
+    Service B validates the JWT signature and claims
+  </Step>
+  
+  <Step title="Service B processes request">
+    Service B identifies the caller from the JWT claims and processes the request
+  </Step>
+</Steps>
+
+## Security Best Practices
+
+<AccordionGroup>
+  <Accordion title="Always Use HTTPS">
+    All API communication should use HTTPS to encrypt data in transit. Our production environment enforces HTTPS for all API endpoints.
+  </Accordion>
+  
+  <Accordion title="Token Security">
+    - Store tokens securely (memory only, secure cookies, or encrypted storage)
+    - Set appropriate expiration times (shorter is better)
+    - Implement token refresh for longer sessions
+    - Revoke tokens when no longer needed (logout, user action, etc.)
+  </Accordion>
+  
+  <Accordion title="API Key Management">
+    - Never store raw API keys in the database, only store hashed versions
+    - Use strong hash algorithms for API key storage (bcrypt, Argon2)
+    - Implement key rotation policies
+    - Allow users to revoke and regenerate API keys
+    - Audit API key usage
+  </Accordion>
+  
+  <Accordion title="Authorization">
+    - Implement proper authorization checks after authentication
+    - Use role-based or permission-based access control
+    - Implement the principle of least privilege
+    - Validate permissions for each request
+  </Accordion>
+  
+  <Accordion title="Security Headers">
+    Our API servers should implement security headers:
+    
+    ```
+    Strict-Transport-Security: max-age=31536000; includeSubDomains
+    Content-Security-Policy: default-src 'self'
+    X-Content-Type-Options: nosniff
+    X-Frame-Options: DENY
+    X-XSS-Protection: 1; mode=block
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Authentication Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="401 Unauthorized Errors">
+    If you receive a 401 Unauthorized error:
+    
+    1. Check if the token or API key is included in the request
+    2. Verify the token has not expired
+    3. Ensure the token is correctly formatted
+    4. Check if the token has been revoked
+  </Accordion>
+  
+  <Accordion title="403 Forbidden Errors">
+    If you receive a 403 Forbidden error:
+    
+    1. The authentication was successful, but the user lacks permissions
+    2. Check the user's role or permissions
+    3. Verify the resource access control settings
+  </Accordion>
+  
+  <Accordion title="Session Issues">
+    If users are unexpectedly logged out:
+    
+    1. Check session duration settings
+    2. Verify that token refresh is working properly
+    3. Check for cookie storage issues (SameSite, Secure flags)
+    4. Look for CORS issues if applicable
+  </Accordion>
+  
+  <Accordion title="JWT Validation Failures">
+    If JWT validation fails:
+    
+    1. Check the JWT signature with the correct secret
+    2. Verify the token has not expired
+    3. Ensure required claims are present
+    4. Check for clock skew between servers
+  </Accordion>
+</AccordionGroup>
+
+## Implementation Checklist
+
+<Card title="Authentication Implementation Checklist" icon="clipboard-check">
+  <CheckboxField id="https" label="All API endpoints use HTTPS" />
+  <CheckboxField id="tokens" label="Tokens have appropriate expiration times" />
+  <CheckboxField id="refresh" label="Token refresh mechanism is implemented" />
+  <CheckboxField id="storage" label="Sensitive credentials are properly hashed/encrypted" />
+  <CheckboxField id="validation" label="Token validation is implemented for all protected routes" />
+  <CheckboxField id="authorization" label="Authorization checks follow authentication" />
+  <CheckboxField id="revocation" label="Token revocation mechanism exists" />
+  <CheckboxField id="monitoring" label="Authentication failures are logged and monitored" />
+  <CheckboxField id="headers" label="Security headers are configured" />
+  <CheckboxField id="testing" label="Authentication flows are tested" />
+</Card>
+
+## Additional Resources
+
+- [Supabase Auth Documentation](https://supabase.com/docs/guides/auth)
+- [JWT.io](https://jwt.io/) - JWT debugging tool
+- [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)
+- [API Security Best Practices](https://github.com/shieldfy/API-Security-Checklist)

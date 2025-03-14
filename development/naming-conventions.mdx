@@ -1,0 +1,534 @@
+---
+title: Naming Conventions
+description: Standardized naming conventions for code, files, and components across all Duraclim projects
+icon: signature
+---
+
+# Naming Conventions
+
+Consistent naming conventions improve code readability, maintainability, and collaboration. This document outlines our standard naming practices across different programming languages, file types, and components.
+
+<Frame>
+  <img src="/images/naming-consistency.png" alt="Consistent Naming" className="rounded-lg" />
+</Frame>
+
+## General Principles
+
+Regardless of the specific language or context, follow these general principles:
+
+1. **Be descriptive** - Names should clearly explain the purpose or function
+2. **Be consistent** - Follow established patterns within the codebase
+3. **Be concise** - Names should be as short as possible while still being clear
+4. **Avoid abbreviations** - Unless they are widely understood (e.g., HTTP, URL)
+5. **Use standard terms** - Prefer industry-standard terminology
+
+## JavaScript/TypeScript Conventions
+
+### Variables
+
+```typescript
+// Use camelCase for variables
+const firstName = 'John';
+let itemCount = 0;
+
+// Use meaningful boolean prefixes (is, has, should)
+const isActive = true;
+const hasPermission = false;
+const shouldRefresh = true;
+
+// Use noun or adjective phrases
+const userProfile = { name: 'John', role: 'admin' };
+const visibleItems = items.filter(item => !item.hidden);
+
+// Constants (values that never change) can use UPPER_SNAKE_CASE
+const MAX_RETRY_ATTEMPTS = 3;
+const API_BASE_URL = 'https://api.duraclim.com';
+```
+
+### Functions
+
+```typescript
+// Use camelCase with verb prefixes describing the action
+function getUserProfile(userId) { /* ... */ }
+function calculateTotal(items) { /* ... */ }
+function validateInput(form) { /* ... */ }
+
+// Event handlers should start with 'handle' or 'on'
+function handleClick(event) { /* ... */ }
+function onSubmit(data) { /* ... */ }
+
+// Boolean-returning functions should start with 'is', 'has', or 'should'
+function isValid(input) { /* ... */ }
+function hasPermission(user, action) { /* ... */ }
+```
+
+### Classes, Interfaces, and Types
+
+```typescript
+// Use PascalCase for classes, interfaces, and type aliases
+class UserService { /* ... */ }
+
+interface ApiResponse {
+  data: any;
+  status: number;
+}
+
+type UserRole = 'admin' | 'user' | 'guest';
+
+// Interfaces should not start with 'I' prefix
+// Good
+interface User { /* ... */ }
+// Avoid
+interface IUser { /* ... */ }
+
+// Generics should use descriptive single uppercase letters or PascalCase names
+function getFirst<T>(items: T[]): T { /* ... */ }
+interface Repository<TEntity> { /* ... */ }
+```
+
+### Enums
+
+```typescript
+// Use PascalCase for enum names and UPPER_CASE for enum values
+enum HttpStatus {
+  OK = 200,
+  BAD_REQUEST = 400,
+  NOT_FOUND = 404,
+  INTERNAL_SERVER_ERROR = 500
+}
+
+// For string enums, use PascalCase for values
+enum UserRole {
+  Admin = 'Admin',
+  User = 'User',
+  Guest = 'Guest'
+}
+```
+
+### React Components
+
+```typescript
+// Use PascalCase for component names
+function UserProfile({ user }) { /* ... */ }
+
+// HOCs (Higher Order Components) should start with 'with'
+function withAuth(Component) { /* ... */ }
+
+// Custom hooks should start with 'use'
+function useLocalStorage(key, initialValue) { /* ... */ }
+
+// Props interfaces should end with 'Props'
+interface ButtonProps {
+  label: string;
+  onClick: () => void;
+  variant?: 'primary' | 'secondary';
+}
+```
+
+## Go Conventions
+
+### Variables and Function Names
+
+```go
+// Variables use camelCase
+var (
+    userName string
+    itemCount int
+    isActive bool
+)
+
+// Function names use camelCase
+func getUserProfile(id string) (*User, error) {
+    // ...
+}
+
+// Methods use camelCase
+func (u *User) UpdateProfile(data ProfileData) error {
+    // ...
+}
+```
+
+### Types and Interfaces
+
+```go
+// Types (structs, interfaces) use PascalCase
+type User struct {
+    ID        string
+    Name      string
+    Email     string
+    CreatedAt time.Time
+}
+
+// Interfaces often end with 'er'
+type Reader interface {
+    Read(p []byte) (n int, err error)
+}
+
+// Constants can use either camelCase or PascalCase
+// depending on whether they should be exported
+const (
+    maxRetryAttempts = 3  // unexported, package-private
+    DefaultTimeout   = 30 // exported, public
+)
+```
+
+### Package Names
+
+```go
+// Package names should be short, lowercase, and without underscores
+package user
+package auth
+package handler
+
+// Avoid
+package userHandler   // Don't use camelCase
+package user_handler  // Don't use snake_case
+```
+
+## File Naming Conventions
+
+### JavaScript/TypeScript Files
+
+```
+// React components (PascalCase)
+UserProfile.tsx
+LoginForm.tsx
+
+// Utility files (kebab-case)
+string-utils.ts
+date-formatter.ts
+
+// Hooks (camelCase with 'use' prefix)
+useAuth.ts
+useLocalStorage.ts
+
+// Context files (PascalCase with 'Context' suffix)
+UserContext.tsx
+AuthContext.tsx
+
+// Configuration files (kebab-case)
+webpack.config.js
+tailwind.config.js
+```
+
+### Go Files
+
+```
+// Main package files (snake_case)
+user_service.go
+auth_middleware.go
+
+// Test files (same name with _test suffix)
+user_service_test.go
+auth_middleware_test.go
+
+// Main entry point
+main.go
+```
+
+### CSS/SCSS Files
+
+```
+// Component styles (match the component name)
+UserProfile.module.css
+LoginForm.module.scss
+
+// Global styles (descriptive kebab-case)
+global-styles.css
+variables.scss
+```
+
+## Database Naming Conventions
+
+### Tables
+
+```sql
+-- Use snake_case for table names
+-- Use plural names for tables that represent collections
+CREATE TABLE users (
+  -- ...
+);
+
+CREATE TABLE product_categories (
+  -- ...
+);
+```
+
+### Columns
+
+```sql
+-- Use snake_case for column names
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  first_name VARCHAR(255) NOT NULL,
+  last_name VARCHAR(255) NOT NULL,
+  email_address VARCHAR(255) UNIQUE NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Indexes and Constraints
+
+```sql
+-- Indexes: idx_[table]_[column(s)]
+CREATE INDEX idx_users_email ON users(email_address);
+
+-- Primary Keys: pk_[table]
+ALTER TABLE users ADD CONSTRAINT pk_users PRIMARY KEY (id);
+
+-- Foreign Keys: fk_[table]_[referenced_table]_[column]
+ALTER TABLE orders ADD CONSTRAINT fk_orders_users_user_id 
+FOREIGN KEY (user_id) REFERENCES users(id);
+
+-- Unique Constraints: uq_[table]_[column(s)]
+ALTER TABLE users ADD CONSTRAINT uq_users_email_address 
+UNIQUE (email_address);
+```
+
+## API Naming Conventions
+
+### Endpoints
+
+Use RESTful naming conventions for API endpoints:
+
+```
+// Get all users
+GET /api/users
+
+// Get a specific user
+GET /api/users/{id}
+
+// Create a new user
+POST /api/users
+
+// Update a user
+PUT /api/users/{id}
+PATCH /api/users/{id}
+
+// Delete a user
+DELETE /api/users/{id}
+
+// Get orders for a user
+GET /api/users/{id}/orders
+```
+
+### Query Parameters
+
+```
+// Filtering
+GET /api/users?role=admin
+
+// Sorting
+GET /api/users?sort=created_at:desc
+
+// Pagination
+GET /api/users?page=2&limit=10
+
+// Search
+GET /api/users?search=john
+```
+
+## Folder Structure Naming
+
+### Next.js Project
+
+```
+app/
+├── [locale]/              # Localized routes (kebab-case)
+│   ├── (auth)/            # Route groups (kebab-case in parentheses)
+│   ├── dashboard/         # Page routes (kebab-case)
+│   └── settings/          # Page routes (kebab-case)
+├── api/                   # API routes (kebab-case)
+components/
+├── ui/                    # UI components (kebab-case)
+│   ├── Button.tsx         # Component files (PascalCase)
+│   └── Card.tsx           # Component files (PascalCase)
+├── dashboard/             # Feature-specific components (kebab-case)
+lib/
+├── utils/                 # Utility functions (kebab-case)
+├── hooks/                 # Custom hooks (kebab-case)
+└── api-client.ts          # Single-purpose utilities (kebab-case)
+```
+
+### Go Project
+
+```
+cmd/
+├── api/                   # Command entry points (snake_case)
+│   └── main.go
+├── worker/                # Command entry points (snake_case)
+│   └── main.go
+internal/
+├── auth/                  # Internal packages (snake_case)
+│   ├── middleware.go
+│   └── token.go
+├── user/                  # Internal packages (snake_case)
+│   ├── handler.go
+│   ├── model.go
+│   └── repository.go
+pkg/
+├── logger/                # Public packages (snake_case)
+│   └── logger.go
+└── validator/             # Public packages (snake_case)
+    └── validator.go
+```
+
+## Common Naming Patterns
+
+### CRUD Operations
+
+For consistency across the codebase, use these standard terms for CRUD operations:
+
+- **Create**: For creating new resources
+- **Get/Find**: For retrieving resources
+- **Update**: For updating existing resources
+- **Delete/Remove**: For deleting resources
+
+Examples:
+
+```typescript
+// Functions
+createUser()
+getUser()
+updateUser()
+deleteUser()
+
+// API Endpoints
+POST /api/users
+GET /api/users/{id}
+PUT /api/users/{id}
+DELETE /api/users/{id}
+```
+
+### Common Prefixes and Suffixes
+
+<table>
+  <thead>
+    <tr>
+      <th>Prefix/Suffix</th>
+      <th>Usage</th>
+      <th>Examples</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>get-, fetch-</td>
+      <td>Functions that retrieve data</td>
+      <td>getUser(), fetchProducts()</td>
+    </tr>
+    <tr>
+      <td>create-</td>
+      <td>Functions that create new entities</td>
+      <td>createOrder(), createAccount()</td>
+    </tr>
+    <tr>
+      <td>update-</td>
+      <td>Functions that modify existing entities</td>
+      <td>updateProfile(), updateSettings()</td>
+    </tr>
+    <tr>
+      <td>delete-, remove-</td>
+      <td>Functions that delete entities</td>
+      <td>deleteUser(), removeItem()</td>
+    </tr>
+    <tr>
+      <td>is-, has-, should-</td>
+      <td>Boolean functions/variables</td>
+      <td>isValid(), hasPermission(), shouldRefresh()</td>
+    </tr>
+    <tr>
+      <td>-List, -Collection</td>
+      <td>Variables containing multiple items</td>
+      <td>userList, productCollection</td>
+    </tr>
+    <tr>
+      <td>-Service</td>
+      <td>Classes that provide a service</td>
+      <td>UserService, PaymentService</td>
+    </tr>
+    <tr>
+      <td>-Repository</td>
+      <td>Classes that access data storage</td>
+      <td>UserRepository, OrderRepository</td>
+    </tr>
+    <tr>
+      <td>-Controller, -Handler</td>
+      <td>Classes that handle requests</td>
+      <td>UserController, PaymentHandler</td>
+    </tr>
+    <tr>
+      <td>-Provider</td>
+      <td>Components that provide context values</td>
+      <td>AuthProvider, ThemeProvider</td>
+    </tr>
+  </tbody>
+</table>
+
+## Linting and Enforcement
+
+We enforce naming conventions using linting tools:
+
+- **ESLint** with naming convention rules for JavaScript/TypeScript
+- **golangci-lint** with naming conventions for Go
+- **SQLFluff** for SQL files
+
+Configuration examples can be found in the respective project repositories.
+
+## Naming Anti-patterns
+
+Avoid these common naming anti-patterns:
+
+<AccordionGroup>
+  <Accordion title="Non-descriptive names">
+    ```typescript
+    // Bad
+    const x = user.firstName;
+    const arr = users.filter(u => u.isActive);
+    
+    // Good
+    const firstName = user.firstName;
+    const activeUsers = users.filter(user => user.isActive);
+    ```
+  </Accordion>
+  
+  <Accordion title="Inconsistent casing">
+    ```typescript
+    // Bad (mixing conventions)
+    const UserName = 'John';
+    const isactive = true;
+    
+    // Good
+    const userName = 'John';
+    const isActive = true;
+    ```
+  </Accordion>
+  
+  <Accordion title="Ambiguous names">
+    ```typescript
+    // Bad (what does "process" mean exactly?)
+    function process(data) { /* ... */ }
+    
+    // Good
+    function validateAndTransformData(data) { /* ... */ }
+    ```
+  </Accordion>
+  
+  <Accordion title="Meaningless prefixes">
+    ```typescript
+    // Bad
+    const theUser = getUser();
+    const aProduct = createProduct();
+    
+    // Good
+    const user = getUser();
+    const product = createProduct();
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Conclusion
+
+Consistent naming conventions create a more maintainable and readable codebase. When in doubt, follow the conventions already established in the project you're working on. If starting a new project, use these guidelines to establish a consistent naming pattern from the beginning.
+
+Remember that readability trumps brevity. The goal is to make the code easy to understand for all team members, including future team members who will maintain the code.

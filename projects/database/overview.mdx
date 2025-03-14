@@ -1,0 +1,327 @@
+---
+title: Database Overview
+description: Overview of our database architecture and Supabase integration
+icon: database
+---
+
+# Database Overview
+
+Our applications use [Supabase](https://supabase.com/) for database management, authentication, and storage. This document provides an overview of our database architecture, key tables, and integration with Supabase.
+
+<Frame>
+  <img src="/images/database-architecture.png" alt="Database Architecture" className="rounded-lg" />
+</Frame>
+
+## Supabase Infrastructure
+
+Supabase provides us with:
+
+- PostgreSQL database
+- Authentication and user management
+- Row-level security (RLS) policies
+- Storage for files and assets
+- Realtime capabilities
+- Edge functions
+
+<Note>
+  We have separate Supabase projects for development, staging, and production environments.
+</Note>
+
+## Key Database Tables
+
+### User Management
+
+<AccordionGroup>
+  <Accordion title="auth.users">
+    The built-in Supabase auth table that stores user authentication information.
+    
+    ```sql
+    -- This is managed by Supabase
+    -- Referenced with auth.users()
+    ```
+  </Accordion>
+  
+  <Accordion title="public.profiles">
+    Extends the auth.users table with application-specific user information.
+    
+    ```sql
+    CREATE TABLE public.profiles (
+      id UUID PRIMARY KEY REFERENCES auth.users(id),
+      username TEXT UNIQUE,
+      full_name TEXT,
+      avatar_url TEXT,
+      role TEXT DEFAULT 'user',
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    ```
+  </Accordion>
+  
+  <Accordion title="public.user_settings">
+    Stores user preferences and settings.
+    
+    ```sql
+    CREATE TABLE public.user_settings (
+      id UUID PRIMARY KEY REFERENCES auth.users(id),
+      theme TEXT DEFAULT 'system',
+      language TEXT DEFAULT 'en',
+      notification_preferences JSONB DEFAULT '{}',
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Service Data
+
+<AccordionGroup>
+  <Accordion title="public.casa_services">
+    Residential cleaning services data.
+    
+    ```sql
+    CREATE TABLE public.casa_services (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name TEXT NOT NULL,
+      description TEXT,
+      base_price DECIMAL(10, 2) NOT NULL,
+      image_url TEXT,
+      is_active BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    ```
+  </Accordion>
+  
+  <Accordion title="public.condo_services">
+    Condominium cleaning services data.
+    
+    ```sql
+    CREATE TABLE public.condo_services (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name TEXT NOT NULL,
+      description TEXT,
+      base_price DECIMAL(10, 2) NOT NULL,
+      condo_type TEXT NOT NULL,
+      image_url TEXT,
+      is_active BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Cart and Orders
+
+<AccordionGroup>
+  <Accordion title="public.cart_tracking">
+    Tracks user cart activity.
+    
+    ```sql
+    CREATE TABLE public.cart_tracking (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      cart_uuid TEXT NOT NULL,
+      user_id UUID REFERENCES auth.users(id),
+      event_type TEXT NOT NULL,
+      event_data JSONB,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    ```
+  </Accordion>
+  
+  <Accordion title="public.cart_orders">
+    Stores completed orders.
+    
+    ```sql
+    CREATE TABLE public.cart_orders (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      cart_uuid TEXT NOT NULL,
+      user_id UUID REFERENCES auth.users(id),
+      client_id TEXT,
+      client_data JSONB,
+      items JSONB NOT NULL,
+      total_amount DECIMAL(10, 2) NOT NULL,
+      status TEXT DEFAULT 'pending',
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Integration Data
+
+<AccordionGroup>
+  <Accordion title="public.pipedrive_clients">
+    Stores Pipedrive client information.
+    
+    ```sql
+    CREATE TABLE public.pipedrive_clients (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      pipedrive_id TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      address JSONB,
+      metadata JSONB,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Row-Level Security (RLS) Policies
+
+We implement RLS policies to secure our data at the database level. Here are some examples:
+
+### Profile Access Policy
+
+```sql
+-- Users can read any profile
+CREATE POLICY "Anyone can read profiles"
+  ON public.profiles
+  FOR SELECT
+  USING (true);
+
+-- Users can only update their own profile
+CREATE POLICY "Users can update their own profile"
+  ON public.profiles
+  FOR UPDATE
+  USING (auth.uid() = id);
+```
+
+### RBAC Authorization Access Policy
+
+```sql
+-- Users can select clients data based on permissions
+CREATE POLICY "Users can select clients data based on permissions"
+  ON public.clients
+  FOR SELECT
+  USING ( authorize("clients.select", auth.uid()) );
+
+-- User can update clients data based on permissions
+CREATE POLICY "Users can update clients data based on permissions" 
+  ON public.clients
+  FOR UPDATE
+  USING ( authorize("clients.update", auth.uid()) );
+```
+
+### Service Access Policy
+
+```sql
+-- Anyone can read active services
+CREATE POLICY "Anyone can read active services"
+  ON public.casa_services
+  FOR SELECT
+  USING (is_active = true);
+
+-- Only administrators can modify services
+CREATE POLICY "Only admins can modify services"
+  ON public.casa_services
+  FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+```
+
+### Cart Policy
+
+```sql
+-- Users can only see their own cart data
+CREATE POLICY "Users can only see their own cart data"
+  ON public.cart_tracking
+  FOR SELECT
+  USING (
+    user_id = auth.uid() OR
+    cart_uuid IN (
+      SELECT cart_uuid FROM public.cart_tracking
+      WHERE user_id = auth.uid()
+    )
+  );
+```
+
+## Database Functions
+
+We use PostgreSQL functions for complex operations:
+
+### Get User Permissions
+
+```sql
+CREATE OR REPLACE FUNCTION get_user_permissions(user_id UUID)
+RETURNS JSONB AS $$
+DECLARE
+  result JSONB;
+BEGIN
+  SELECT 
+    jsonb_build_object(
+      'role', p.role,
+      'permissions', COALESCE(
+        (
+          SELECT jsonb_agg(permission)
+          FROM public.user_permissions
+          WHERE user_id = $1
+        ), 
+        '[]'::jsonb
+      )
+    ) INTO result
+  FROM 
+    public.profiles p
+  WHERE 
+    p.id = $1;
+    
+  RETURN result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+### Calculate Service Pricing
+
+```sql
+CREATE OR REPLACE FUNCTION calculate_service_price(
+  service_id UUID,
+  service_type TEXT,
+  options JSONB
+)
+RETURNS DECIMAL AS $
+DECLARE
+  base_price DECIMAL;
+  final_price DECIMAL;
+BEGIN
+  -- Get the base price based on service type
+  IF service_type = 'casa' THEN
+    SELECT base_price INTO base_price FROM public.casa_services WHERE id = service_id;
+  ELSIF service_type = 'condo' THEN
+    SELECT base_price INTO base_price FROM public.condo_services WHERE id = service_id;
+  ELSE
+    RETURN 0;
+  END IF;
+  
+  -- Start with the base price
+  final_price := base_price;
+  
+  -- Apply modifiers based on options
+  IF options ? 'vents' THEN
+    final_price := final_price + (options->>'vents')::int * 5;
+  END IF;
+  
+  IF options ? 'square_footage' AND (options->>'square_footage')::int > 1500 THEN
+    final_price := final_price + ((options->>'square_footage')::int - 1500) / 100 * 2;
+  END IF;
+  
+  IF options ? 'additional_services' THEN
+    final_price := final_price + jsonb_array_length(options->'additional_services') * 25;
+  END IF;
+  
+  -- Apply discounts if any
+  IF options ? 'discount_percentage' THEN
+    final_price := final_price * (1 - (options->>'discount_percentage')::decimal / 100);
+  END IF;
+  
+  RETURN final_price;
+END;
+$ LANGUAGE plpgsql;

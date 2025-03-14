@@ -1,0 +1,1097 @@
+---
+title: Go Deployment
+description: Guide to deploying Go microservices in Duraclim's infrastructure
+icon: cloud-arrow-up
+---
+
+# Go Deployment
+
+This document covers our deployment strategies, environments, and processes for Go microservices at Duraclim.
+
+<Frame>
+  <img src="/images/go-deployment-pipeline.png" alt="Go Deployment Pipeline" className="rounded-lg" />
+</Frame>
+
+## Deployment Environments
+
+We maintain multiple environments for our Go microservices:
+
+<CardGroup cols={3}>
+  <Card title="Development" icon="code">
+    For active development and early testing
+    
+    **URL Pattern:** `dev-api.duraclim.com`
+  </Card>
+  
+  <Card title="Staging" icon="vial">
+    For testing before production deployment
+    
+    **URL Pattern:** `staging-api.duraclim.com`
+  </Card>
+  
+  <Card title="Production" icon="rocket">
+    Live environment for end users
+    
+    **URL Pattern:** `api.duraclim.com`
+  </Card>
+</CardGroup>
+
+## Containerization
+
+We use Docker to containerize our Go applications for consistent deployment across environments.
+
+### Docker Configuration
+
+<Steps>
+  <Step title="Create Dockerfile">
+    ```dockerfile
+    # Path: Dockerfile
+    
+    # Build stage
+    FROM golang:1.19-alpine AS builder
+    
+    # Set working directory
+    WORKDIR /app
+    
+    # Copy go module files
+    COPY go.mod go.sum ./
+    
+    # Download dependencies
+    RUN go mod download
+    
+    # Copy source code
+    COPY . .
+    
+    # Build the application
+    RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o service ./cmd/api
+    
+    # Final stage
+    FROM alpine:3.17
+    
+    # Set working directory
+    WORKDIR /app
+    
+    # Install CA certificates for HTTPS requests
+    RUN apk --no-cache add ca-certificates
+    
+    # Copy the binary from builder
+    COPY --from=builder /app/service .
+    
+    # Copy migrations
+    COPY --from=builder /app/migrations ./migrations
+    
+    # Copy config files
+    COPY --from=builder /app/config/config.yaml ./config/
+    
+    # Expose port
+    EXPOSE 8080
+    
+    # Set health check
+    HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+        CMD wget -qO- http://localhost:8080/health || exit 1
+    
+    # Run the application
+    CMD ["./service"]
+    ```
+  </Step>
+
+  <Step title="Create docker-compose.dev.yml for development">
+    ```yaml
+    # Path: docker-compose.dev.yml
+    version: '3.8'
+    
+    services:
+      api:
+        build:
+          context: ./src
+          dockerfile: Dockerfile
+        ports:
+          - "8080:8080"
+        environment:
+          - ENVIRONMENT=development
+          - SERVER_ADDRESS=:8080
+          - DATABASE_URL=postgres://postgres:postgres@db:5432/myservice?sslmode=disable
+        depends_on:
+          - db
+        restart: unless-stopped
+        healthcheck:
+          test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+          interval: 30s
+          timeout: 3s
+          retries: 3
+          start_period: 5s
+      
+      db:
+        image: postgres:14-alpine
+        ports:
+          - "5432:5432"
+        environment:
+          - POSTGRES_USER=postgres
+          - POSTGRES_PASSWORD=postgres
+          - POSTGRES_DB=myservice
+        volumes:
+          - postgres_data:/var/lib/postgresql/data
+        healthcheck:
+          test: ["CMD-SHELL", "pg_isready -U postgres"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
+    
+    volumes:
+      postgres_data:
+    ```
+  </Step>
+  
+  <Step title="Create docker-compose.yml">
+    ```yaml
+    # Path: docker-compose.yaml
+    version: '3.8'
+    
+    services:
+      api:
+        build:
+          context: ./src
+          dockerfile: Dockerfile
+        ports:
+          - "8080:8080"
+        environment:
+          - ENVIRONMENT=development
+          - SERVER_ADDRESS=:8080
+          - DATABASE_URL=postgres://postgres:postgres@db:5432/myservice?sslmode=disable
+          - LOG_LEVEL=debug
+        healthcheck:
+          test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+          interval: 30s
+          timeout: 3s
+          retries: 3
+          start_period: 5s
+        volumes:
+          - ./src:/app  # Mount source code for hot reloading
+        depends_on:
+          - db
+        restart: unless-stopped
+        command: ["go", "run", "./cmd/api/main.go"]  # Use go run instead of the binary for development
+      
+      db:
+        image: postgres:14-alpine
+        ports:
+          - "5432:5432"
+        environment:
+          - POSTGRES_USER=postgres
+          - POSTGRES_PASSWORD=postgres
+          - POSTGRES_DB=myservice
+        healthcheck:
+          test: ["CMD-SHELL", "pg_isready -U postgres"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
+        volumes:
+          - postgres_data:/var/lib/postgresql/data
+    
+    volumes:
+      postgres_data:
+    ```
+  </Step>
+</Steps>
+
+## CI/CD Pipeline
+
+We use GitHub Actions for continuous integration and deployment:
+
+### GitHub Actions Workflow
+
+```yaml
+# Path: .github/workflows/ci-cd.yml
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: myservice_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.19'
+          cache: true
+      
+      - name: Install dependencies
+        run: go mod download
+      
+      - name: Run linter
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+      
+      - name: Run unit tests
+        run: go test -v ./... -short
+      
+      - name: Run integration tests
+        run: go test -v ./... -run Integration
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/myservice_test?sslmode=disable
+  
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./src
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ secrets.AWS_ECR_REGISTRY }}/${{ secrets.AWS_ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ secrets.AWS_ECR_REGISTRY }}/${{ secrets.AWS_ECR_REPOSITORY }}:${{ github.ref == 'refs/heads/main' && 'latest' || 'develop' }}
+  
+  deploy-development:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/develop'
+    
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      
+      - name: Update ECS service
+        run: |
+          aws ecs update-service \
+            --cluster duraclim-dev \
+            --service my-service \
+            --force-new-deployment
+  
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      
+      - name: Update ECS service
+        run: |
+          aws ecs update-service \
+            --cluster duraclim-prod \
+            --service my-service \
+            --force-new-deployment
+```
+
+## AWS Infrastructure
+
+We deploy our Go microservices on AWS using ECS (Elastic Container Service) with Fargate:
+
+<img src="/images/aws-infrastructure.png" alt="AWS Infrastructure" className="rounded-lg" />
+
+### AWS Services Used
+
+<CardGroup cols={2}>
+  <Card title="ECR" icon="cloud">
+    Amazon Elastic Container Registry for storing Docker images
+  </Card>
+  
+  <Card title="ECS" icon="server">
+    Amazon Elastic Container Service for orchestrating containers
+  </Card>
+  
+  <Card title="Fargate" icon="container-storage">
+    Serverless compute engine for containers
+  </Card>
+  
+  <Card title="RDS" icon="database">
+    Amazon Relational Database Service for PostgreSQL
+  </Card>
+  
+  <Card title="ElastiCache" icon="memory">
+    Redis for caching and session management
+  </Card>
+  
+  <Card title="ALB" icon="network-wired">
+    Application Load Balancer for routing requests
+  </Card>
+</CardGroup>
+
+### AWS Infrastructure as Code
+
+We use AWS CloudFormation to define our infrastructure as code:
+
+```yaml
+# Path: infrastructure/ecs-cluster.yml
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ECS Cluster for Go Microservices'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Environment (dev, staging, prod)
+
+Resources:
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub duraclim-${Environment}
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  # Add other resources like VPC, subnets, security groups, etc.
+
+Outputs:
+  ClusterName:
+    Description: The name of the ECS cluster
+    Value: !Ref ECSCluster
+    Export:
+      Name: !Sub ${AWS::StackName}-ClusterName
+```
+
+```yaml
+# Path: infrastructure/service.yml
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ECS Service for a Go Microservice'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Environment (dev, staging, prod)
+  
+  ServiceName:
+    Type: String
+    Description: Name of the service
+  
+  ImageUrl:
+    Type: String
+    Description: URL of the Docker image
+  
+  ContainerPort:
+    Type: Number
+    Default: 8080
+    Description: Port exposed by the container
+  
+  ClusterName:
+    Type: String
+    Description: Name of the ECS cluster
+
+Resources:
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${ServiceName}-${Environment}
+      Cpu: '256'
+      Memory: '512'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue 
+        Fn::Sub: ${ClusterName}-TaskExecutionRole
+      ContainerDefinitions:
+        - Name: !Ref ServiceName
+          Image: !Ref ImageUrl
+          Essential: true
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref CloudWatchLogsGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: ENVIRONMENT
+              Value: !Ref Environment
+            - Name: SERVER_ADDRESS
+              Value: !Sub :${ContainerPort}
+  
+  CloudWatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${ServiceName}-${Environment}
+      RetentionInDays: 30
+  
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub ${ServiceName}-${Environment}
+      Cluster: !Ref ClusterName
+      TaskDefinition: !Ref TaskDefinition
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !ImportValue 
+              Fn::Sub: ${ClusterName}-ServiceSecurityGroup
+          Subnets:
+            - !ImportValue 
+              Fn::Sub: ${ClusterName}-PublicSubnet1
+            - !ImportValue 
+              Fn::Sub: ${ClusterName}-PublicSubnet2
+      LoadBalancers:
+        - ContainerName: !Ref ServiceName
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref TargetGroup
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+  
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Port: !Ref ContainerPort
+      Protocol: HTTP
+      TargetType: ip
+      VpcId: !ImportValue 
+        Fn::Sub: ${ClusterName}-VpcId
+  
+  # Add listener rules, auto scaling, etc.
+
+Outputs:
+  ServiceName:
+    Description: The name of the ECS service
+    Value: !Ref Service
+    Export:
+      Name: !Sub ${AWS::StackName}-ServiceName
+```
+
+## Database Migrations
+
+We use migration scripts that run during deployment:
+
+```go
+// Path: cmd/migrate/main.go
+package main
+
+import (
+	"flag"
+	"fmt"
+	"log"
+	"os"
+
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+
+	"github.com/duraclim/my-service/config"
+)
+
+func main() {
+	// Parse command line flags
+	var migrationsPath string
+	flag.StringVar(&migrationsPath, "path", "migrations", "Path to migration files")
+	flag.Parse()
+
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	// Create migrate instance
+	m, err := migrate.New(
+		fmt.Sprintf("file://%s", migrationsPath),
+		cfg.DatabaseURL,
+	)
+	if err != nil {
+		log.Fatalf("Migration failed: %v", err)
+	}
+
+	// Run migrations
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		log.Fatalf("Failed to apply migrations: %v", err)
+	}
+
+	log.Println("Migrations applied successfully")
+}
+```
+
+### Deployment Script
+
+```bash
+#!/bin/bash
+# Path: scripts/deploy.sh
+
+# Script to deploy the service to the specified environment
+
+# Usage information
+usage() {
+  echo "Usage: $0 [dev|staging|prod]"
+  exit 1
+}
+
+# Check if environment argument is provided
+if [ -z "$1" ]; then
+  usage
+fi
+
+# Set environment
+ENV=$1
+
+# Validate environment
+if [ "$ENV" != "dev" ] && [ "$ENV" != "staging" ] && [ "$ENV" != "prod" ]; then
+  usage
+fi
+
+# Set AWS profile based on environment
+if [ "$ENV" == "prod" ]; then
+  AWS_PROFILE=duraclim-prod
+else
+  AWS_PROFILE=duraclim-dev
+fi
+
+# Build and push Docker image
+echo "Building and pushing Docker image for $ENV environment..."
+ECR_REPO="123456789012.dkr.ecr.us-east-1.amazonaws.com/my-service"
+TAG="$(git rev-parse --short HEAD)"
+
+docker build -t $ECR_REPO:$TAG -t $ECR_REPO:$ENV ./src
+aws ecr get-login-password --profile $AWS_PROFILE | docker login --username AWS --password-stdin $ECR_REPO
+docker push $ECR_REPO:$TAG
+docker push $ECR_REPO:$ENV
+
+# Update service
+echo "Updating ECS service..."
+CLUSTER="duraclim-$ENV"
+SERVICE="my-service-$ENV"
+
+aws ecs update-service \
+  --profile $AWS_PROFILE \
+  --cluster $CLUSTER \
+  --service $SERVICE \
+  --force-new-deployment
+
+# Run migrations
+echo "Running database migrations..."
+aws ecs run-task \
+  --profile $AWS_PROFILE \
+  --cluster $CLUSTER \
+  --task-definition my-service-migrate-$ENV \
+  --launch-type FARGATE \
+  --network-configuration "awsvpcConfiguration={subnets=[subnet-12345678],securityGroups=[sg-12345678],assignPublicIp=ENABLED}"
+
+echo "Deployment complete!"
+```
+
+## Environment Configuration
+
+We manage environment variables through parameter store:
+
+```yaml
+# Path: infrastructure/parameters.yml
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'SSM Parameters for Go Microservice'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Environment (dev, staging, prod)
+  
+  ServiceName:
+    Type: String
+    Description: Name of the service
+  
+  DatabasePassword:
+    Type: String
+    NoEcho: true
+    Description: Database password
+
+Resources:
+  DatabaseUrlParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${Environment}/${ServiceName}/DATABASE_URL
+      Type: SecureString
+      Value: !Sub postgres://myuser:${DatabasePassword}@${Environment}-db.example.com:5432/myservice?sslmode=require
+      Description: Database connection string
+  
+  JwtSecretParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${Environment}/${ServiceName}/JWT_SECRET
+      Type: SecureString
+      Value: !Sub ${AWS::AccountId}-${AWS::Region}-${Environment}-jwt-secret
+      Description: JWT secret key
+  
+  # Add other parameters as needed
+```
+
+In the ECS task definition, we reference these parameters:
+
+```json
+{
+  "containerDefinitions": [
+    {
+      "name": "my-service",
+      "image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-service:latest",
+      "essential": true,
+      "secrets": [
+        {
+          "name": "DATABASE_URL",
+          "valueFrom": "/dev/my-service/DATABASE_URL"
+        },
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "/dev/my-service/JWT_SECRET"
+        }
+      ],
+      "environment": [
+        {
+          "name": "ENVIRONMENT",
+          "value": "dev"
+        },
+        {
+          "name": "SERVER_ADDRESS",
+          "value": ":8080"
+        },
+        {
+          "name": "LOG_LEVEL",
+          "value": "info"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Monitoring and Logging
+
+We use the following for monitoring and observability:
+
+<CardGroup cols={2}>
+  <Card title="CloudWatch" icon="cloud">
+    For logs and metrics
+  </Card>
+  
+  <Card title="Prometheus" icon="chart-simple">
+    For application metrics
+  </Card>
+  
+  <Card title="Grafana" icon="chart-line">
+    For metric visualization
+  </Card>
+  
+  <Card title="X-Ray" icon="sitemap">
+    For distributed tracing
+  </Card>
+</CardGroup>
+
+### Logging Configuration
+
+We use structured logging with JSON format:
+
+```go
+// Path: pkg/logger/logger.go
+package logger
+
+import (
+    "os"
+    
+    "go.uber.org/zap"
+    "go.uber.org/zap/zapcore"
+)
+
+// New creates a new logger
+func New(level string) (*zap.Logger, error) {
+    // Parse log level
+    var zapLevel zapcore.Level
+    if err := zapLevel.UnmarshalText([]byte(level)); err != nil {
+        zapLevel = zapcore.InfoLevel
+    }
+    
+    // Create encoder config
+    encoderConfig := zap.NewProductionEncoderConfig()
+    encoderConfig.TimeKey = "timestamp"
+    encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+    
+    // Create config
+    config := zap.Config{
+        Level:       zap.NewAtomicLevelAt(zapLevel),
+        Development: false,
+        Sampling: &zap.SamplingConfig{
+            Initial:    100,
+            Thereafter: 100,
+        },
+        Encoding:         "json",
+        EncoderConfig:    encoderConfig,
+        OutputPaths:      []string{"stdout"},
+        ErrorOutputPaths: []string{"stderr"},
+    }
+    
+    // Build logger
+    return config.Build()
+}
+```
+
+### Metrics Implementation
+
+We use Prometheus for metrics:
+
+```go
+// Path: internal/metrics/metrics.go
+package metrics
+
+import (
+    "github.com/prometheus/client_golang/prometheus"
+    "github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+    // RequestCounter counts the number of HTTP requests
+    RequestCounter = promauto.NewCounterVec(
+        prometheus.CounterOpts{
+            Name: "http_requests_total",
+            Help: "Total number of HTTP requests",
+        },
+        []string{"method", "endpoint", "status"},
+    )
+    
+    // RequestDuration measures request duration
+    RequestDuration = promauto.NewHistogramVec(
+        prometheus.HistogramOpts{
+            Name:    "http_request_duration_seconds",
+            Help:    "HTTP request duration in seconds",
+            Buckets: prometheus.DefBuckets,
+        },
+        []string{"method", "endpoint"},
+    )
+    
+    // DatabaseQueryDuration measures database query duration
+    DatabaseQueryDuration = promauto.NewHistogramVec(
+        prometheus.HistogramOpts{
+            Name:    "database_query_duration_seconds",
+            Help:    "Database query duration in seconds",
+            Buckets: prometheus.DefBuckets,
+        },
+        []string{"query_type"},
+    )
+)
+```
+
+Middleware to record metrics:
+
+```go
+// Path: pkg/middleware/metrics.go
+package middleware
+
+import (
+    "net/http"
+    "strconv"
+    "time"
+    
+    "github.com/duraclim/my-service/internal/metrics"
+)
+
+// Metrics middleware records request metrics
+func Metrics(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        start := time.Now()
+        
+        // Create a custom response writer to capture status code
+        rw := newResponseWriter(w)
+        
+        // Call the next handler
+        next.ServeHTTP(rw, r)
+        
+        // Record metrics
+        duration := time.Since(start).Seconds()
+        statusCode := strconv.Itoa(rw.status)
+        
+        metrics.RequestCounter.WithLabelValues(r.Method, r.URL.Path, statusCode).Inc()
+        metrics.RequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+    })
+}
+```
+
+## Health Checks
+
+We implement health checks to monitor service status:
+
+```go
+// Path: internal/handler/http/health_handler.go
+package http
+
+import (
+    "encoding/json"
+    "net/http"
+    "time"
+    
+    "github.com/duraclim/my-service/internal/repository/postgres"
+)
+
+// HealthHandler handles health check requests
+type HealthHandler struct {
+    db *postgres.DB
+}
+
+// NewHealthHandler creates a new health handler
+func NewHealthHandler(db *postgres.DB) *HealthHandler {
+    return &HealthHandler{
+        db: db,
+    }
+}
+
+// HealthResponse represents the health check response
+type HealthResponse struct {
+    Status    string            `json:"status"`
+    Version   string            `json:"version"`
+    Timestamp string            `json:"timestamp"`
+    Checks    map[string]string `json:"checks"`
+}
+
+// HandleHealthCheck handles health check requests
+func (h *HealthHandler) HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
+    checks := make(map[string]string)
+    
+    // Check database connection
+    err := h.db.Ping()
+    if err != nil {
+        checks["database"] = "unhealthy: " + err.Error()
+    } else {
+        checks["database"] = "healthy"
+    }
+    
+    // Add other dependency checks here
+    
+    // Determine overall status
+    status := "healthy"
+    for _, checkStatus := range checks {
+        if checkStatus != "healthy" {
+            status = "unhealthy"
+            break
+        }
+    }
+    
+    // Create response
+    response := HealthResponse{
+        Status:    status,
+        Version:   "1.0.0", // Should come from build info
+        Timestamp: time.Now().Format(time.RFC3339),
+        Checks:    checks,
+    }
+    
+    // Set status code
+    if status != "healthy" {
+        w.WriteHeader(http.StatusServiceUnavailable)
+    } else {
+        w.WriteHeader(http.StatusOK)
+    }
+    
+    // Write response
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+}
+```
+
+## Scaling Strategies
+
+We configure auto-scaling for our services based on metrics:
+
+```yaml
+# Path: infrastructure/auto-scaling.yml
+Resources:
+  ServiceScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: 10
+      MinCapacity: 2
+      ResourceId: !Sub service/${ClusterName}/${ServiceName}
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+      RoleARN: !GetAtt AutoScalingRole.Arn
+  
+  ScaleUpPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${ServiceName}-scale-up
+      PolicyType: TargetTrackingScaling
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+      ResourceId: !Sub service/${ClusterName}/${ServiceName}
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: 70.0
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+  
+  # Add additional scaling policies based on custom metrics
+```
+
+## Security Considerations
+
+<AccordionGroup>
+  <Accordion title="HTTPS and TLS">
+    - All services use HTTPS
+    - TLS 1.2+ with strong ciphers
+    - Certificates managed by AWS Certificate Manager
+  </Accordion>
+  
+  <Accordion title="Network Security">
+    - Services run in private subnets
+    - Security groups restrict access
+    - NAT Gateway for outbound traffic
+    - VPC Flow Logs for network monitoring
+  </Accordion>
+  
+  <Accordion title="Authentication and Authorization">
+    - JWT-based authentication
+    - Role-based access control
+    - Token expiration and rotation
+    - Secrets stored in AWS Systems Manager Parameter Store
+  </Accordion>
+  
+  <Accordion title="Container Security">
+    - Minimal base images (Alpine)
+    - Non-root users
+    - Read-only file systems
+    - Regular security scanning
+  </Accordion>
+</AccordionGroup>
+
+## Deployment Checklist
+
+<Card title="Deployment Checklist" icon="clipboard-check">
+  <CheckboxField id="tests" label="All tests passing" />
+  <CheckboxField id="security" label="Security scan completed" />
+  <CheckboxField id="migrations" label="Database migrations tested" />
+  <CheckboxField id="environment" label="Environment variables configured" />
+  <CheckboxField id="docker" label="Docker image built and pushed" />
+  <CheckboxField id="deployment" label="Service deployment succeeded" />
+  <CheckboxField id="health" label="Health checks passing" />
+  <CheckboxField id="logs" label="Logs being generated correctly" />
+  <CheckboxField id="metrics" label="Metrics being collected" />
+  <CheckboxField id="alarms" label="Alarms configured" />
+</Card>
+
+## Rollback Procedures
+
+If a deployment fails or introduces issues, follow these rollback procedures:
+
+<Steps>
+  <Step title="Identify the issue">
+    Check logs and monitoring to identify the problem
+  </Step>
+  
+  <Step title="Roll back task definition">
+    ```bash
+    # Get previous task definition
+    PREVIOUS_TASK_DEF=$(aws ecs describe-task-definition \
+      --task-definition my-service \
+      --query "taskDefinition.taskDefinitionArn" \
+      --output text)
+    
+    # Update service to use previous task definition
+    aws ecs update-service \
+      --cluster duraclim-prod \
+      --service my-service \
+      --task-definition $PREVIOUS_TASK_DEF \
+      --force-new-deployment
+    ```
+  </Step>
+  
+  <Step title="Verify rollback">
+    Monitor health checks and logs to ensure service is healthy
+  </Step>
+  
+  <Step title="Document the issue">
+    Document what went wrong and how it was fixed
+  </Step>
+</Steps>
+
+## Disaster Recovery
+
+Our disaster recovery plan includes:
+
+1. **Database Backups** - Automated backups with point-in-time recovery
+2. **Multi-AZ Deployment** - Services deployed across multiple availability zones
+3. **Infrastructure as Code** - All infrastructure defined as code for quick recovery
+4. **Runbooks** - Detailed runbooks for common failure scenarios
+
+## Resources
+
+- [AWS ECS Documentation](https://docs.aws.amazon.com/ecs/index.html)
+- [Docker Documentation](https://docs.docker.com/)
+- [Go Deployment Best Practices](https://golang.org/doc/effective_go)
+- [Terraform Documentation](https://www.terraform.io/docs)
+- [CloudFormation Documentation](https://docs.aws.amazon.com/cloudformation/index.html)

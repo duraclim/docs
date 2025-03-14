@@ -1,0 +1,972 @@
+---
+title: API Overview
+description: Overview of the Duraclim API services and endpoints
+icon: code
+---
+
+# API Overview
+
+Duraclim's API infrastructure is designed to support our applications with reliable, secure, and performant services. This document provides an overview of our API architecture, endpoints, and integration patterns.
+
+<Frame>
+  <img src="/images/api-architecture.png" alt="API Architecture" className="rounded-lg" />
+</Frame>
+
+## API Architecture
+
+Our API architecture follows a hybrid approach:
+
+1. **Next.js API Routes** - For frontend-facing services, integrated with our Next.js applications
+2. **Go Microservices** - For specialized backend services like the Reschedule Client
+3. **Supabase Functions** - For serverless operations closely tied to database operations
+
+<AccordionGroup>
+  <Accordion title="Next.js API Routes">
+    Route handler based API endpoints that leverage Next.js' built-in API capabilities. These are typically used for:
+    
+    - Frontend-specific data requirements
+    - Integration with third-party services
+    - Simple CRUD operations
+  </Accordion>
+  
+  <Accordion title="Go Microservices">
+    Standalone Go-based services that provide specialized functionality:
+    
+    - Higher performance needs
+    - Complex business logic
+    - Integration with legacy systems
+    - Long-running operations
+  </Accordion>
+  
+  <Accordion title="Supabase Functions">
+    Serverless functions for database-centric operations:
+    
+    - Direct database access needs
+    - Trigger-based actions
+    - Simple utilities that need database access
+  </Accordion>
+</AccordionGroup>
+
+## Next.js API Routes
+
+Our Next.js application includes several API routes to support the frontend:
+
+### Route Structure
+
+```
+app/[locale]/api/
+├── analytics/              # Analytics data endpoints
+│   ├── revenue/            # Revenue analytics
+│   ├── sales/              # Sales analytics
+│   ├── salesman/           # Salesman performance
+│   ├── service/            # Service analytics
+│   └── travel/             # Travel analytics
+├── health/                 # Health check endpoint
+├── invoice/
+│   └── download/           # Invoice download
+├── mapbox/                 # MapBox integration
+│   ├── matrix/             # Distance matrix
+│   ├── nearest/            # Nearest location
+│   ├── retrieve/           # Location retrieval
+│   └── search/             # Address search
+├── pipedrive/              # Pipedrive CRM integration
+└── users/
+    └── delete/             # User management
+```
+
+### Key Endpoints
+
+#### Health Check
+
+```typescript
+// Path: app/[locale]/api/health/route.ts
+import { NextResponse } from 'next/server'
+
+export async function GET() {
+  return NextResponse.json({ 
+    status: 'ok',
+    timestamp: new Date().toISOString()
+  })
+}
+```
+
+#### Analytics: Revenue
+
+```typescript
+// Path: app/[locale]/api/analytics/revenue/route.ts
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams
+  const startDate = searchParams.get('startDate')
+  const endDate = searchParams.get('endDate')
+  
+  // Validation
+  if (!startDate || !endDate) {
+    return NextResponse.json(
+      { error: 'Missing required parameters' },
+      { status: 400 }
+    )
+  }
+  
+  try {
+    const supabase = createClient()
+    
+    // Fetch data from Supabase
+    const { data, error } = await supabase
+      .from('analytics_revenue')
+      .select('*')
+      .gte('date', startDate)
+      .lte('date', endDate)
+      
+    if (error) throw error
+    
+    // Process data
+    const result = processRevenueData(data)
+    
+    return NextResponse.json(result)
+  } catch (error) {
+    console.error('Revenue API error:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch revenue data' },
+      { status: 500 }
+    )
+  }
+}
+
+function processRevenueData(data) {
+  // Data processing logic
+  return {
+    total: data.reduce((sum, item) => sum + item.amount, 0),
+    breakdown: data.reduce((acc, item) => {
+      // Group by service type
+      acc[item.service_type] = (acc[item.service_type] || 0) + item.amount
+      return acc
+    }, {})
+  }
+}
+```
+
+#### MapBox: Address Search
+
+```typescript
+// Path: app/[locale]/api/mapbox/search/route.ts
+import { NextRequest, NextResponse } from 'next/server'
+
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams
+  const query = searchParams.get('query')
+  
+  if (!query) {
+    return NextResponse.json(
+      { error: 'Missing query parameter' },
+      { status: 400 }
+    )
+  }
+  
+  try {
+    const response = await fetch(
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${process.env.MAPBOX_API_KEY}&country=ca`
+    )
+    
+    if (!response.ok) {
+      throw new Error(`MapBox API error: ${response.statusText}`)
+    }
+    
+    const data = await response.json()
+    
+    return NextResponse.json(data)
+  } catch (error) {
+    console.error('MapBox API error:', error)
+    return NextResponse.json(
+      { error: 'Failed to search address' },
+      { status: 500 }
+    )
+  }
+}
+```
+
+#### Invoice Download
+
+```typescript
+// Path: app/[locale]/api/invoice/download/route.ts
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { generateInvoicePDF } from '@/lib/invoice'
+
+export async function POST(request: NextRequest) {
+  try {
+    const { orderId, language } = await request.json()
+    
+    if (!orderId) {
+      return NextResponse.json(
+        { error: 'Missing orderId parameter' },
+        { status: 400 }
+      )
+    }
+    
+    const supabase = createClient()
+    
+    // Fetch order details
+    const { data: order, error } = await supabase
+      .from('cart_orders')
+      .select('*')
+      .eq('id', orderId)
+      .single()
+      
+    if (error || !order) {
+      return NextResponse.json(
+        { error: 'Order not found' },
+        { status: 404 }
+      )
+    }
+    
+    // Generate PDF
+    const pdfBuffer = await generateInvoicePDF(order, language || 'en')
+    
+    // Return PDF as download
+    return new NextResponse(pdfBuffer, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="invoice-${orderId}.pdf"`
+      }
+    })
+  } catch (error) {
+    console.error('Invoice generation error:', error)
+    return NextResponse.json(
+      { error: 'Failed to generate invoice' },
+      { status: 500 }
+    )
+  }
+}
+```
+
+## Go API Services
+
+Our Go services provide specialized API endpoints:
+
+### Reschedule Client API
+
+<table>
+  <thead>
+    <tr>
+      <th>Endpoint</th>
+      <th>Method</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>/api/clients</td>
+      <td>GET</td>
+      <td>List all clients</td>
+    </tr>
+    <tr>
+      <td>/api/clients/:id</td>
+      <td>GET</td>
+      <td>Get client details</td>
+    </tr>
+    <tr>
+      <td>/api/clients/:id/reschedule</td>
+      <td>POST</td>
+      <td>Reschedule a client's appointment</td>
+    </tr>
+    <tr>
+      <td>/api/clients/blacklist</td>
+      <td>POST</td>
+      <td>Add a client to the blacklist</td>
+    </tr>
+    <tr>
+      <td>/api/tokens</td>
+      <td>POST</td>
+      <td>Create a new authentication token</td>
+    </tr>
+    <tr>
+      <td>/api/tokens/validate</td>
+      <td>POST</td>
+      <td>Validate an authentication token</td>
+    </tr>
+  </tbody>
+</table>
+
+Example implementation of the reschedule endpoint:
+
+```go
+// Path: src/api/resource/client/handler.go
+func (h *Handler) HandleRescheduleRequest(w http.ResponseWriter, r *http.Request) {
+    // Parse the client ID from the URL
+    vars := mux.Vars(r)
+    clientID := vars["id"]
+    
+    // Parse request body
+    var req RescheduleRequest
+    err := json.NewDecoder(r.Body).Decode(&req)
+    if err != nil {
+        h.RespondWithError(w, http.StatusBadRequest, "Invalid request payload")
+        return
+    }
+    
+    // Validate the request
+    if !h.isValidRescheduleRequest(req) {
+        h.RespondWithError(w, http.StatusBadRequest, "Invalid reschedule request")
+        return
+    }
+    
+    // Check if client is blacklisted
+    blacklisted, err := h.repository.IsClientBlacklisted(clientID)
+    if err != nil {
+        h.RespondWithError(w, http.StatusInternalServerError, "Error checking blacklist status")
+        return
+    }
+    
+    if blacklisted {
+        h.RespondWithError(w, http.StatusForbidden, "Client is blacklisted")
+        return
+    }
+    
+    // Process the reschedule request
+    err = h.repository.RescheduleAppointment(clientID, req.JobID, req.NewDate)
+    if err != nil {
+        h.RespondWithError(w, http.StatusInternalServerError, "Error processing reschedule request")
+        return
+    }
+    
+    // Return success response
+    h.RespondWithJSON(w, http.StatusOK, map[string]string{
+        "message": "Appointment rescheduled successfully",
+        "job_id": req.JobID,
+        "new_date": req.NewDate.Format(time.RFC3339),
+    })
+}
+```
+
+## API Authentication
+
+Our APIs use different authentication mechanisms based on the context:
+
+### Next.js API Routes
+
+Next.js API routes use Supabase authentication:
+
+```typescript
+// Path: lib/supabase/server.ts
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+
+export function createClient() {
+  const cookieStore = cookies()
+  
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name) {
+          return cookieStore.get(name)?.value
+        },
+        set(name, value, options) {
+          cookieStore.set(name, value, options)
+        },
+        remove(name, options) {
+          cookieStore.set(name, '', options)
+        }
+      }
+    }
+  )
+}
+```
+
+### Go API Services
+
+Go services use token-based authentication:
+
+```go
+// Path: src/api/middleware/auth.go
+package middleware
+
+import (
+    "context"
+    "net/http"
+    "strings"
+    
+    "github.com/duraclim/go-reschedule-client/api/resource/token"
+)
+
+// AuthMiddleware authenticates requests using tokens
+func AuthMiddleware(repo *token.Repository) func(http.Handler) http.Handler {
+    return func(next http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            // Extract token from Authorization header
+            authHeader := r.Header.Get("Authorization")
+            if authHeader == "" {
+                http.Error(w, "Missing Authorization header", http.StatusUnauthorized)
+                return
+            }
+            
+            // Format: "Bearer {token}"
+            parts := strings.Split(authHeader, " ")
+            if len(parts) != 2 || parts[0] != "Bearer" {
+                http.Error(w, "Invalid Authorization header format", http.StatusUnauthorized)
+                return
+            }
+            
+            tokenStr := parts[1]
+            
+            // Validate token
+            clientID, err := repo.ValidateToken(tokenStr)
+            if err != nil {
+                http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+                return
+            }
+            
+            // Add client ID to context
+            ctx := context.WithValue(r.Context(), "clientID", clientID)
+            
+            // Call the next handler with the updated context
+            next.ServeHTTP(w, r.WithContext(ctx))
+        })
+    }
+}
+```
+
+## API Rate Limiting
+
+We implement rate limiting to protect our APIs from abuse:
+
+### Next.js Rate Limiting
+
+```typescript
+// Path: lib/middlewares/rate-limit.ts
+import { NextRequest, NextResponse } from 'next/server'
+import { Redis } from '@upstash/redis'
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_URL!,
+  token: process.env.UPSTASH_REDIS_TOKEN!,
+})
+
+// Rate limit: 60 requests per minute
+const RATE_LIMIT = 60
+const WINDOW_SIZE = 60 // seconds
+
+export async function rateLimit(req: NextRequest) {
+  const ip = req.ip || 'anonymous'
+  const key = `rate-limit:${ip}`
+  
+  // Get current count
+  let count = await redis.get(key) as number | null
+  
+  if (count === null) {
+    // First request in window
+    await redis.set(key, 1, { ex: WINDOW_SIZE })
+    return null
+  }
+  
+  if (count >= RATE_LIMIT) {
+    // Rate limit exceeded
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      { status: 429 }
+    )
+  }
+  
+  // Increment count
+  await redis.incr(key)
+  return null
+}
+```
+
+### Go Rate Limiting
+
+```go
+// Path: src/api/middleware/rate_limit.go
+package middleware
+
+import (
+    "net/http"
+    "sync"
+    "time"
+)
+
+// Simple in-memory rate limiter
+type RateLimiter struct {
+    requests     map[string][]time.Time
+    mu           sync.Mutex
+    limit        int
+    windowSize   time.Duration
+}
+
+func NewRateLimiter(limit int, windowSize time.Duration) *RateLimiter {
+    return &RateLimiter{
+        requests:   make(map[string][]time.Time),
+        limit:      limit,
+        windowSize: windowSize,
+    }
+}
+
+func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        // Get client IP
+        ip := r.RemoteAddr
+        
+        rl.mu.Lock()
+        defer rl.mu.Unlock()
+        
+        // Clean up old requests
+        now := time.Now()
+        cutoff := now.Add(-rl.windowSize)
+        
+        requests := rl.requests[ip]
+        var validRequests []time.Time
+        
+        for _, t := range requests {
+            if t.After(cutoff) {
+                validRequests = append(validRequests, t)
+            }
+        }
+        
+        rl.requests[ip] = validRequests
+        
+        // Check rate limit
+        if len(validRequests) >= rl.limit {
+            w.Header().Set("Retry-After", "60")
+            http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
+            return
+        }
+        
+        // Add current request
+        rl.requests[ip] = append(rl.requests[ip], now)
+        
+        next.ServeHTTP(w, r)
+    })
+}
+```
+
+## Error Handling
+
+We follow a consistent error handling pattern across all our APIs:
+
+### Next.js Error Handling
+
+```typescript
+// Path: lib/utils/api-error.ts
+export class ApiError extends Error {
+  statusCode: number;
+  
+  constructor(message: string, statusCode: number) {
+    super(message);
+    this.statusCode = statusCode;
+    this.name = 'ApiError';
+  }
+  
+  static badRequest(message: string) {
+    return new ApiError(message, 400);
+  }
+  
+  static unauthorized(message: string = 'Unauthorized') {
+    return new ApiError(message, 401);
+  }
+  
+  static forbidden(message: string = 'Forbidden') {
+    return new ApiError(message, 403);
+  }
+  
+  static notFound(message: string = 'Not found') {
+    return new ApiError(message, 404);
+  }
+  
+  static internalServer(message: string = 'Internal server error') {
+    return new ApiError(message, 500);
+  }
+}
+```
+
+### Go Error Handling
+
+```go
+// Path: src/api/resource/common/err/err.go
+package err
+
+import (
+    "encoding/json"
+    "net/http"
+)
+
+// ErrorResponse represents a JSON error response
+type ErrorResponse struct {
+    Error string `json:"error"`
+}
+
+// RespondWithError writes a JSON error response
+func RespondWithError(w http.ResponseWriter, code int, message string) {
+    RespondWithJSON(w, code, ErrorResponse{Error: message})
+}
+
+// RespondWithJSON writes a JSON response
+func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+    response, _ := json.Marshal(payload)
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(code)
+    w.Write(response)
+}
+```
+
+## API Documentation
+
+Our APIs are documented using OpenAPI/Swagger. Here's an example of a Swagger definition for the Reschedule Client API:
+
+```yaml
+openapi: 3.0.0
+info:
+  title: Duraclim Reschedule Client API
+  description: API for managing client rescheduling and blacklisting
+  version: 1.0.0
+servers:
+  - url: https://api.duraclim.com/v1
+paths:
+  /clients:
+    get:
+      summary: List all clients
+      responses:
+        '200':
+          description: A list of clients
+  /clients/{id}:
+    get:
+      summary: Get client details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Client details
+        '404':
+          description: Client not found
+  /clients/{id}/reschedule:
+    post:
+      summary: Reschedule a client's appointment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - jobId
+                - newDate
+              properties:
+                jobId:
+                  type: string
+                newDate:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Appointment rescheduled successfully
+        '400':
+          description: Invalid request payload
+        '403':
+          description: Client is blacklisted
+  /clients/blacklist:
+    post:
+      summary: Add a client to blacklist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - phone
+              properties:
+                email:
+                  type: string
+                phone:
+                  type: string
+                reason:
+                  type: string
+      responses:
+        '201':
+          description: Client added to blacklist
+        '400':
+          description: Invalid request payload
+```
+
+## API Testing
+
+We test our APIs using a combination of unit tests and integration tests:
+
+### Next.js API Testing
+
+```typescript
+// Path: __tests__/api/analytics/revenue.test.ts
+import { NextRequest } from 'next/server'
+import { GET } from '@/app/[locale]/api/analytics/revenue/route'
+
+// Mock Supabase client
+jest.mock('@/lib/supabase/server', () => ({
+  createClient: jest.fn(() => ({
+    from: jest.fn(() => ({
+      select: jest.fn(() => ({
+        gte: jest.fn(() => ({
+          lte: jest.fn(() => ({
+            data: [
+              { date: '2023-01-01', amount: 100, service_type: 'casa' },
+              { date: '2023-01-02', amount: 200, service_type: 'condo' }
+            ],
+            error: null
+          }))
+        }))
+      }))
+    }))
+  }))
+}))
+
+describe('Revenue API', () => {
+  it('should return revenue data', async () => {
+    // Create mock request
+    const request = new NextRequest(
+      new URL('http://localhost:3000/api/analytics/revenue?startDate=2023-01-01&endDate=2023-01-31')
+    )
+    
+    // Call API route handler
+    const response = await GET(request)
+    const data = await response.json()
+    
+    // Assertions
+    expect(response.status).toBe(200)
+    expect(data).toEqual({
+      total: 300,
+      breakdown: {
+        casa: 100,
+        condo: 200
+      }
+    })
+  })
+  
+  it('should return error for missing parameters', async () => {
+    // Create mock request without parameters
+    const request = new NextRequest(
+      new URL('http://localhost:3000/api/analytics/revenue')
+    )
+    
+    // Call API route handler
+    const response = await GET(request)
+    const data = await response.json()
+    
+    // Assertions
+    expect(response.status).toBe(400)
+    expect(data).toEqual({ error: 'Missing required parameters' })
+  })
+})
+```
+
+### Go API Testing
+
+```go
+// Path: src/api/resource/client/handler_test.go
+package client
+
+import (
+    "bytes"
+    "encoding/json"
+    "net/http"
+    "net/http/httptest"
+    "testing"
+    "time"
+    
+    "github.com/gorilla/mux"
+)
+
+func TestHandleRescheduleRequest(t *testing.T) {
+    // Create mock repository
+    mockRepo := &MockRepository{
+        isBlacklisted: false,
+    }
+    
+    // Create handler with mock repository
+    handler := NewHandler(mockRepo)
+    
+    // Create test request
+    newDate := time.Now().Add(24 * time.Hour)
+    reqBody, _ := json.Marshal(RescheduleRequest{
+        JobID:   "job123",
+        NewDate: newDate,
+    })
+    
+    // Create request
+    req, _ := http.NewRequest("POST", "/clients/client123/reschedule", bytes.NewBuffer(reqBody))
+    
+    // Set up router with URL parameters
+    router := mux.NewRouter()
+    router.HandleFunc("/clients/{id}/reschedule", handler.HandleRescheduleRequest).Methods("POST")
+    
+    // Create response recorder
+    rr := httptest.NewRecorder()
+    
+    // Serve request
+    router.ServeHTTP(rr, req)
+    
+    // Check status code
+    if status := rr.Code; status != http.StatusOK {
+        t.Errorf("handler returned wrong status code: got %v want %v",
+            status, http.StatusOK)
+    }
+    
+    // Check response body
+    var response map[string]string
+    err := json.Unmarshal(rr.Body.Bytes(), &response)
+    if err != nil {
+        t.Errorf("error parsing response: %v", err)
+    }
+    
+    if message, ok := response["message"]; !ok || message != "Appointment rescheduled successfully" {
+        t.Errorf("handler returned unexpected message: got %v", response)
+    }
+}
+```
+
+## API Monitoring
+
+We monitor our APIs using a combination of tools and techniques:
+
+1. **Health Checks** - Regular probes to ensure API endpoints are responsive
+2. **Error Logs** - Centralized logging for API errors
+3. **Performance Metrics** - Tracking response times and throughput
+4. **Alerting** - Notifications for API errors or performance issues
+
+```typescript
+// Path: lib/monitoring/api-metrics.ts
+import { NextRequest, NextResponse } from 'next/server'
+
+export async function monitorApiRequest(req: NextRequest, handler: (req: NextRequest) => Promise<NextResponse>) {
+  const startTime = performance.now()
+  const url = req.nextUrl.pathname
+  const method = req.method
+  
+  try {
+    // Execute handler
+    const response = await handler(req)
+    
+    // Calculate duration
+    const duration = performance.now() - startTime
+    
+    // Log successful request
+    console.log(`API ${method} ${url}: ${response.status} (${duration.toFixed(2)}ms)`)
+    
+    // Record metrics
+    recordApiMetrics(url, method, response.status, duration)
+    
+    return response
+  } catch (error) {
+    // Calculate duration
+    const duration = performance.now() - startTime
+    
+    // Log error
+    console.error(`API ${method} ${url}: ERROR (${duration.toFixed(2)}ms)`, error)
+    
+    // Record error metrics
+    recordApiError(url, method, error, duration)
+    
+    // Re-throw error
+    throw error
+  }
+}
+
+async function recordApiMetrics(url: string, method: string, status: number, duration: number) {
+  // Implementation to record metrics to monitoring system
+}
+
+async function recordApiError(url: string, method: string, error: any, duration: number) {
+  // Implementation to record errors to monitoring system
+}
+```
+
+## API Versioning
+
+We use URL versioning for our APIs to ensure backward compatibility:
+
+- `/v1/clients` - Version 1 of the clients API
+- `/v2/clients` - Version 2 of the clients API (when needed)
+
+### Versioning Strategy
+
+1. **Never Break Existing Endpoints** - Add new endpoints rather than modifying existing ones
+2. **Deprecation Period** - Mark endpoints as deprecated before removing them
+3. **Version Headers** - Support version specification in headers as an alternative
+
+```go
+// Path: src/api/router/router.go
+package router
+
+import (
+    "net/http"
+    
+    "github.com/gorilla/mux"
+    "github.com/duraclim/go-reschedule-client/api/resource/client"
+)
+
+func NewRouter(clientHandler *client.Handler) *mux.Router {
+    r := mux.NewRouter()
+    
+    // API v1
+    v1 := r.PathPrefix("/v1").Subrouter()
+    
+    // Clients routes
+    v1.HandleFunc("/clients", clientHandler.HandleListClients).Methods("GET")
+    v1.HandleFunc("/clients/{id}", clientHandler.HandleGetClient).Methods("GET")
+    v1.HandleFunc("/clients/{id}/reschedule", clientHandler.HandleRescheduleRequest).Methods("POST")
+    v1.HandleFunc("/clients/blacklist", clientHandler.HandleBlacklistClient).Methods("POST")
+    
+    // API v2 (when needed)
+    v2 := r.PathPrefix("/v2").Subrouter()
+    
+    // Add v2 routes here...
+    
+    return r
+}
+```
+
+## API Best Practices
+
+We follow these best practices for all our APIs:
+
+1. **Consistent Error Handling** - Use standard error response formats
+2. **Proper HTTP Status Codes** - Use the correct status codes for responses
+3. **Input Validation** - Validate all input parameters
+4. **Rate Limiting** - Protect against abuse
+5. **Authentication** - Secure all endpoints appropriately
+6. **Documentation** - Keep API documentation up to date
+7. **Logging** - Log all API requests and errors
+8. **Testing** - Write tests for all endpoints
+9. **Monitoring** - Track API performance and usage
+
+### Security Considerations
+
+- Use HTTPS for all API endpoints
+- Implement proper authentication and authorization
+- Validate and sanitize all inputs
+- Protect against common attacks (CSRF, XSS, injection)
+- Use rate limiting to prevent abuse
+- Keep dependencies up to date
+
+## API Development Guide
+
+For detailed instructions on developing new API endpoints, refer to our [API Development Guide](/api/development).
+
+## Additional Resources
+
+- [OpenAPI Specification](https://swagger.io/specification/)
+- [REST API Design Best Practices](https://docs.microsoft.com/en-us/azure/architecture/best-practices/api-design)
+- [HTTP Status Codes](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status)
+- [JSON:API Specification](https://jsonapi.org/)

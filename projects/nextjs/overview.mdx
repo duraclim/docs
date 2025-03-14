@@ -1,0 +1,926 @@
+---
+title: Next.js Projects Overview
+description: Overview of Duraclim's Next.js applications, architecture, and standards
+icon: react
+---
+
+# Next.js Projects Overview
+
+Duraclim uses Next.js as our primary frontend framework for building web applications. This document provides an overview of our Next.js projects, architecture decisions, and development standards.
+
+<Frame>
+  <img src="/images/nextjs-architecture.png" alt="Next.js Architecture" className="rounded-lg" />
+</Frame>
+
+## Why Next.js?
+
+We chose Next.js for our web applications for several key reasons:
+
+1. **Server-Side Rendering and Static Generation** - Improved performance and SEO
+2. **App Router Architecture** - Better organization and nested layouts
+3. **React Server Components** - Reduced client-side JavaScript and improved performance
+4. **API Routes** - Simplified backend functionality within the same project
+5. **Built-in Routing** - Simple and powerful file-based routing
+6. **TypeScript Support** - First-class TypeScript integration
+7. **International Support** - Built-in internationalization capabilities
+8. **Performance Optimization** - Image optimization, font optimization, etc.
+
+## Key Projects
+
+<CardGroup cols={2}>
+  <Card title="Duraclim Calculator" icon="calculator" href="/projects/nextjs/calculator">
+    Service pricing calculator for sales representatives and customers
+    
+    **Repository:** [duraclim-calculator](https://github.com/duraclim/duraclim-calculator)
+  </Card>
+  
+  <Card title="Dashboard Portal" icon="gauge-high">
+    Internal dashboard for service management and analytics
+    
+    **Repository:** [duraclim-dashboard](https://github.com/duraclim/duraclim-dashboard)
+  </Card>
+  
+  <Card title="Public Website" icon="globe">
+    Company marketing website and customer portal
+    
+    **Repository:** [duraclim-website](https://github.com/duraclim/duraclim-website)
+  </Card>
+  
+  <Card title="Mobile Portal" icon="mobile">
+    Mobile-optimized web application for field technicians
+    
+    **Repository:** [duraclim-mobile-portal](https://github.com/duraclim/duraclim-mobile-portal)
+  </Card>
+</CardGroup>
+
+## Architecture Overview
+
+Our Next.js projects follow a consistent architecture pattern:
+
+<AccordionGroup>
+  <Accordion title="App Router Structure">
+    We use the Next.js App Router with the following structure:
+    
+    ```
+    app/
+    ├── [locale]/              # Internationalization
+    │   ├── (auth)/            # Auth-related route group
+    │   │   ├── login/         # Login page
+    │   │   └── register/      # Registration page
+    │   ├── (dashboard)/       # Dashboard route group
+    │   │   ├── layout.tsx     # Dashboard layout
+    │   │   ├── page.tsx       # Dashboard home page
+    │   │   └── settings/      # Settings page
+    │   └── api/               # API routes
+    │       ├── auth/          # Authentication endpoints
+    │       └── data/          # Data endpoints
+    ├── layout.tsx             # Root layout
+    └── page.tsx               # Root page (redirects to localized version)
+    ```
+    
+    This structure allows us to:
+    - Organize routes by feature/domain
+    - Share layouts between related routes
+    - Implement i18n routing
+    - Keep API routes separate from page routes
+  </Accordion>
+  
+  <Accordion title="Component Organization">
+    We organize components by feature and type:
+    
+    ```
+    components/
+    ├── ui/                    # Reusable UI components
+    │   ├── button.tsx         # Button component
+    │   ├── card.tsx           # Card component
+    │   └── input.tsx          # Input component
+    ├── layouts/               # Layout components
+    │   ├── dashboard-layout.tsx  # Dashboard layout
+    │   └── sidebar.tsx        # Sidebar component
+    ├── forms/                 # Form components
+    │   ├── login-form.tsx     # Login form
+    │   └── register-form.tsx  # Registration form
+    └── feature-name/          # Feature-specific components
+        ├── feature-card.tsx   # Feature card component
+        └── feature-list.tsx   # Feature list component
+    ```
+    
+    This organization:
+    - Makes components easy to find
+    - Promotes reusability
+    - Separates domain-specific from generic components
+  </Accordion>
+  
+  <Accordion title="State Management">
+    We use a combination of state management approaches:
+    
+    1. **React Context** - For global theme, authentication, and other cross-cutting concerns
+    
+    ```typescript
+    // Path: contexts/ThemeContext.tsx
+    import React, { createContext, useContext, useState } from 'react';
+    
+    type Theme = 'light' | 'dark' | 'system';
+    
+    type ThemeContextType = {
+      theme: Theme;
+      setTheme: (theme: Theme) => void;
+    };
+    
+    const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+    
+    export function ThemeProvider({ children }: { children: React.ReactNode }) {
+      const [theme, setTheme] = useState<Theme>('system');
+      
+      return (
+        <ThemeContext.Provider value={{ theme, setTheme }}>
+          {children}
+        </ThemeContext.Provider>
+      );
+    }
+    
+    export function useTheme() {
+      const context = useContext(ThemeContext);
+      if (context === undefined) {
+        throw new Error('useTheme must be used within a ThemeProvider');
+      }
+      return context;
+    }
+    ```
+    
+    2. **Zustand** - For more complex state with actions
+    
+    ```typescript
+    // Path: lib/stores/useCartStore.ts
+    import { create } from 'zustand';
+    
+    interface CartItem {
+      id: string;
+      name: string;
+      price: number;
+      quantity: number;
+    }
+    
+    interface CartStore {
+      items: CartItem[];
+      addItem: (item: CartItem) => void;
+      removeItem: (id: string) => void;
+      updateQuantity: (id: string, quantity: number) => void;
+      clearCart: () => void;
+      getTotal: () => number;
+    }
+    
+    export const useCartStore = create<CartStore>((set, get) => ({
+      items: [],
+      
+      addItem: (item) => set((state) => {
+        const existingItem = state.items.find((i) => i.id === item.id);
+        
+        if (existingItem) {
+          return {
+            items: state.items.map((i) => 
+              i.id === item.id 
+                ? { ...i, quantity: i.quantity + item.quantity }
+                : i
+            ),
+          };
+        }
+        
+        return { items: [...state.items, item] };
+      }),
+      
+      removeItem: (id) => set((state) => ({
+        items: state.items.filter((i) => i.id !== id),
+      })),
+      
+      updateQuantity: (id, quantity) => set((state) => ({
+        items: state.items.map((i) => 
+          i.id === id ? { ...i, quantity } : i
+        ),
+      })),
+      
+      clearCart: () => set({ items: [] }),
+      
+      getTotal: () => {
+        return get().items.reduce(
+          (total, item) => total + item.price * item.quantity, 
+          0
+        );
+      },
+    }));
+    ```
+    
+    3. **React Query** - For server state management
+    
+    ```typescript
+    // Path: lib/hooks/useUsers.ts
+    import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+    
+    export function useUsers() {
+      const queryClient = useQueryClient();
+      
+      const usersQuery = useQuery({
+        queryKey: ['users'],
+        queryFn: async () => {
+          const response = await fetch('/api/users');
+          if (!response.ok) {
+            throw new Error('Failed to fetch users');
+          }
+          return response.json();
+        },
+      });
+      
+      const createUserMutation = useMutation({
+        mutationFn: async (newUser) => {
+          const response = await fetch('/api/users', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(newUser),
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to create user');
+          }
+          
+          return response.json();
+        },
+        onSuccess: () => {
+          // Invalidate and refetch users query
+          queryClient.invalidateQueries({ queryKey: ['users'] });
+        },
+      });
+      
+      return {
+        users: usersQuery.data,
+        isLoading: usersQuery.isLoading,
+        error: usersQuery.error,
+        createUser: createUserMutation.mutate,
+        isCreating: createUserMutation.isPending,
+      };
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="API Structure">
+    Our Next.js applications include API routes for backend functionality:
+    
+    ```typescript
+    // Path: app/[locale]/api/users/route.ts
+    import { NextRequest, NextResponse } from 'next/server';
+    import { createClient } from '@/lib/supabase/server';
+    import { userSchema } from '@/lib/schemas/userSchema';
+    
+    export async function GET(request: NextRequest) {
+      const supabase = createClient();
+      
+      // Get user data from Supabase
+      const { data, error } = await supabase
+        .from('users')
+        .select('*');
+        
+      if (error) {
+        return NextResponse.json(
+          { error: 'Failed to fetch users' },
+          { status: 500 }
+        );
+      }
+      
+      return NextResponse.json({ users: data });
+    }
+    
+    export async function POST(request: NextRequest) {
+      try {
+        const body = await request.json();
+        
+        // Validate user data
+        const result = userSchema.safeParse(body);
+        
+        if (!result.success) {
+          return NextResponse.json(
+            { error: 'Invalid user data', details: result.error.format() },
+            { status: 400 }
+          );
+        }
+        
+        const supabase = createClient();
+        
+        // Insert user into Supabase
+        const { data, error } = await supabase
+          .from('users')
+          .insert([result.data])
+          .select()
+          .single();
+          
+        if (error) {
+          return NextResponse.json(
+            { error: 'Failed to create user' },
+            { status: 500 }
+          );
+        }
+        
+        return NextResponse.json(
+          { user: data },
+          { status: 201 }
+        );
+      } catch (error) {
+        console.error('Error creating user:', error);
+        
+        return NextResponse.json(
+          { error: 'Internal server error' },
+          { status: 500 }
+        );
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## UI Component Library
+
+We use a combination of Tailwind CSS and shadcn/ui for our UI components:
+
+### Component Example
+
+```tsx
+// Path: components/ui/card.tsx
+import * as React from "react"
+import { cn } from "@/lib/utils"
+
+const Card = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      "rounded-lg border bg-card text-card-foreground shadow-sm",
+      className
+    )}
+    {...props}
+  />
+))
+Card.displayName = "Card"
+
+const CardHeader = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex flex-col space-y-1.5 p-6", className)}
+    {...props}
+  />
+))
+CardHeader.displayName = "CardHeader"
+
+const CardTitle = React.forwardRef<
+  HTMLParagraphElement,
+  React.HTMLAttributes<HTMLHeadingElement>
+>(({ className, ...props }, ref) => (
+  <h3
+    ref={ref}
+    className={cn(
+      "text-2xl font-semibold leading-none tracking-tight",
+      className
+    )}
+    {...props}
+  />
+))
+CardTitle.displayName = "CardTitle"
+
+const CardDescription = React.forwardRef<
+  HTMLParagraphElement,
+  React.HTMLAttributes<HTMLParagraphElement>
+>(({ className, ...props }, ref) => (
+  <p
+    ref={ref}
+    className={cn("text-sm text-muted-foreground", className)}
+    {...props}
+  />
+))
+CardDescription.displayName = "CardDescription"
+
+const CardContent = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn("p-6 pt-0", className)} {...props} />
+))
+CardContent.displayName = "CardContent"
+
+const CardFooter = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex items-center p-6 pt-0", className)}
+    {...props}
+  />
+))
+CardFooter.displayName = "CardFooter"
+
+export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
+```
+
+### Theme Customization
+
+We customize the default theme to match our brand:
+
+```typescript
+// Path: tailwind.config.js
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  darkMode: ["class"],
+  content: [
+    './pages/**/*.{ts,tsx}',
+    './components/**/*.{ts,tsx}',
+    './app/**/*.{ts,tsx}',
+    './src/**/*.{ts,tsx}',
+  ],
+  theme: {
+    container: {
+      center: true,
+      padding: "2rem",
+      screens: {
+        "2xl": "1400px",
+      },
+    },
+    extend: {
+      colors: {
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
+      },
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
+      keyframes: {
+        "accordion-down": {
+          from: { height: 0 },
+          to: { height: "var(--radix-accordion-content-height)" },
+        },
+        "accordion-up": {
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: 0 },
+        },
+      },
+      animation: {
+        "accordion-down": "accordion-down 0.2s ease-out",
+        "accordion-up": "accordion-up 0.2s ease-out",
+      },
+    },
+  },
+  plugins: [require("tailwindcss-animate")],
+}
+```
+
+## Internationalization (i18n)
+
+We support multiple languages in our applications using Next.js internationalization features:
+
+```typescript
+// Path: middleware.ts
+import { NextRequest, NextResponse } from 'next/server'
+import { match } from '@formatjs/intl-localematcher'
+import Negotiator from 'negotiator'
+
+// List of supported locales
+export const locales = ['en', 'fr']
+export const defaultLocale = 'en'
+
+// Get the preferred locale from the request
+function getLocale(request: NextRequest) {
+  // Negotiator expects request headers as an object
+  const headers = Object.fromEntries(request.headers)
+  const negotiator = new Negotiator({ headers })
+  
+  // Use negotiator and intl-localematcher to get the best locale
+  const languages = negotiator.languages()
+  return match(languages, locales, defaultLocale)
+}
+
+export function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+  
+  // Check if the pathname is missing a locale
+  const pathnameIsMissingLocale = locales.every(
+    locale => !pathname.startsWith(`/${locale}/`) && pathname !== `/${locale}`
+  )
+  
+  // If it's missing a locale, redirect to the default locale
+  if (pathnameIsMissingLocale) {
+    const locale = getLocale(request)
+    
+    // Create a new URL with the locale
+    const newUrl = new URL(`/${locale}${pathname}`, request.url)
+    
+    // Preserve the search params
+    newUrl.search = request.nextUrl.search
+    
+    return NextResponse.redirect(newUrl)
+  }
+  
+  return NextResponse.next()
+}
+
+export const config = {
+  matcher: [
+    // Skip the following paths:
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+  ],
+}
+```
+
+### Translation Files
+
+We use JSON files for translations:
+
+```json
+// Path: messages/en.json
+{
+  "common": {
+    "welcome": "Welcome to Duraclim",
+    "login": "Login",
+    "register": "Register",
+    "logout": "Logout",
+    "email": "Email",
+    "password": "Password"
+  },
+  "home": {
+    "hero": {
+      "title": "Professional Cleaning Services",
+      "subtitle": "Quality cleaning solutions for residential and commercial needs"
+    }
+  },
+  "calculator": {
+    "title": "Service Calculator",
+    "subtitle": "Calculate the cost of our services",
+    "selectService": "Select a service"
+  }
+}
+
+// Path: messages/fr.json
+{
+  "common": {
+    "welcome": "Bienvenue chez Duraclim",
+    "login": "Connexion",
+    "register": "S'inscrire",
+    "logout": "Déconnexion",
+    "email": "Courriel",
+    "password": "Mot de passe"
+  },
+  "home": {
+    "hero": {
+      "title": "Services de Nettoyage Professionnels",
+      "subtitle": "Solutions de nettoyage de qualité pour les besoins résidentiels et commerciaux"
+    }
+  },
+  "calculator": {
+    "title": "Calculateur de Services",
+    "subtitle": "Calculez le coût de nos services",
+    "selectService": "Sélectionnez un service"
+  }
+}
+```
+
+## Testing Strategy
+
+Our Next.js applications include comprehensive testing:
+
+### Unit Tests
+
+```typescript
+// Path: components/ui/button.test.tsx
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { Button } from './button';
+
+describe('Button', () => {
+  it('renders correctly', () => {
+    render(<Button>Click me</Button>);
+    
+    expect(screen.getByRole('button')).toHaveTextContent('Click me');
+  });
+  
+  it('handles clicks', async () => {
+    const handleClick = jest.fn();
+    render(<Button onClick={handleClick}>Click me</Button>);
+    
+    await userEvent.click(screen.getByRole('button'));
+    
+    expect(handleClick).toHaveBeenCalledTimes(1);
+  });
+  
+  it('can be disabled', () => {
+    render(<Button disabled>Click me</Button>);
+    
+    expect(screen.getByRole('button')).toBeDisabled();
+  });
+  
+  it('renders different variants', () => {
+    const { rerender } = render(<Button variant="default">Default</Button>);
+    expect(screen.getByRole('button')).toHaveClass('bg-primary');
+    
+    rerender(<Button variant="destructive">Destructive</Button>);
+    expect(screen.getByRole('button')).toHaveClass('bg-destructive');
+  });
+});
+```
+
+### Integration Tests
+
+```typescript
+// Path: __tests__/integration/login.test.tsx
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { LoginForm } from '@/components/forms/login-form';
+import { AuthProvider } from '@/contexts/auth-context';
+
+// Mock Supabase client
+jest.mock('@/lib/supabase/client', () => ({
+  createClient: jest.fn(() => ({
+    auth: {
+      signInWithPassword: jest.fn(),
+    },
+  })),
+}));
+
+describe('LoginForm', () => {
+  it('submits the form with valid inputs', async () => {
+    const mockSignIn = jest.fn().mockResolvedValue({
+      data: { user: { id: '123' } },
+      error: null,
+    });
+    
+    require('@/lib/supabase/client').createClient().auth.signInWithPassword = mockSignIn;
+    
+    render(
+      <AuthProvider>
+        <LoginForm />
+      </AuthProvider>
+    );
+    
+    // Fill the form
+    await userEvent.type(screen.getByLabelText(/email/i), 'test@example.com');
+    await userEvent.type(screen.getByLabelText(/password/i), 'password123');
+    
+    // Submit the form
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    
+    // Check if form was submitted correctly
+    await waitFor(() => {
+      expect(mockSignIn).toHaveBeenCalledWith({
+        email: 'test@example.com',
+        password: 'password123',
+      });
+    });
+  });
+  
+  it('shows validation errors for invalid inputs', async () => {
+    render(
+      <AuthProvider>
+        <LoginForm />
+      </AuthProvider>
+    );
+    
+    // Submit without filling the form
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    
+    // Check for validation errors
+    expect(screen.getByText(/email is required/i)).toBeInTheDocument();
+    expect(screen.getByText(/password is required/i)).toBeInTheDocument();
+  });
+});
+```
+
+### End-to-End Tests
+
+```typescript
+// Path: tests/e2e/login.spec.ts
+import { test, expect } from '@playwright/test';
+
+test.describe('Login Page', () => {
+  test('successful login redirects to dashboard', async ({ page }) => {
+    // Navigate to login page
+    await page.goto('/en/login');
+    
+    // Fill the login form
+    await page.fill('input[name="email"]', 'test@example.com');
+    await page.fill('input[name="password"]', 'password123');
+    
+    // Click the login button
+    await page.click('button[type="submit"]');
+    
+    // Wait for redirect to dashboard
+    await page.waitForURL('**/dashboard');
+    
+    // Verify dashboard is loaded
+    await expect(page.locator('h1')).toContainText('Dashboard');
+  });
+  
+  test('shows error for invalid credentials', async ({ page }) => {
+    // Navigate to login page
+    await page.goto('/en/login');
+    
+    // Fill the login form with invalid credentials
+    await page.fill('input[name="email"]', 'test@example.com');
+    await page.fill('input[name="password"]', 'wrongpassword');
+    
+    // Click the login button
+    await page.click('button[type="submit"]');
+    
+    // Check for error message
+    await expect(page.locator('.error-message')).toContainText(
+      'Invalid login credentials'
+    );
+    
+    // Verify we're still on the login page
+    await expect(page).toHaveURL(/login/);
+  });
+});
+```
+
+## Performance Optimization
+
+Our Next.js applications include various performance optimizations:
+
+### Next.js Built-in Optimizations
+
+1. **Image Optimization** - Using Next.js Image component
+
+```tsx
+import Image from 'next/image';
+
+export function OptimizedImage() {
+  return (
+    <Image
+      src="/hero-image.jpg"
+      alt="Hero Image"
+      width={1200}
+      height={600}
+      priority
+      className="rounded-lg"
+    />
+  );
+}
+```
+
+2. **Font Optimization** - Using Next.js Font module
+
+```tsx
+import { Inter, Roboto_Mono } from 'next/font/google';
+
+// Primary font
+export const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+});
+
+// Monospace font for code blocks
+export const roboto_mono = Roboto_Mono({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-roboto-mono',
+});
+```
+
+3. **Script Optimization** - Using Next.js Script component
+
+```tsx
+import Script from 'next/script';
+
+export function Analytics() {
+  return (
+    <Script
+      src="https://analytics.example.com/script.js"
+      strategy="lazyOnload"
+      onLoad={() => console.log('Analytics script loaded')}
+    />
+  );
+}
+```
+
+### Custom Optimizations
+
+1. **Code Splitting** - Using dynamic imports
+
+```tsx
+import dynamic from 'next/dynamic';
+
+// Dynamically import a heavy component
+const HeavyChart = dynamic(() => import('@/components/charts/heavy-chart'), {
+  loading: () => <div>Loading chart...</div>,
+  ssr: false, // Only render on client side
+});
+
+export function DashboardPage() {
+  return (
+    <div>
+      <h1>Dashboard</h1>
+      <HeavyChart data={chartData} />
+    </div>
+  );
+}
+```
+
+2. **Memoization** - Using React.memo and useMemo
+
+```tsx
+import { useMemo } from 'react';
+import { ExpensiveList } from '@/components/expensive-list';
+
+export function DataPage({ items, filter }) {
+  // Memoize the filtered items
+  const filteredItems = useMemo(() => {
+    console.log('Filtering items...');
+    return items.filter((item) => item.category === filter);
+  }, [items, filter]);
+  
+  return <ExpensiveList items={filteredItems} />;
+}
+```
+
+## Project Structure
+
+For detailed information about the project structure of our Next.js applications, see the [Next.js Project Structure](/projects/nextjs/structure) document.
+
+## Deployment
+
+For information on how we deploy our Next.js applications, see the [Next.js Deployment](/projects/nextjs/deployment) document.
+
+## Best Practices
+
+### Code Organization
+
+1. **Feature-Based Structure** - Organize code by feature rather than technical type
+2. **Reusable Components** - Create UI components that can be reused across projects
+3. **Business Logic Separation** - Keep business logic in separate files/hooks from UI components
+4. **Clear Module Boundaries** - Define clear boundaries between modules with explicit interfaces
+
+### Routing Best Practices
+
+1. **Shallow Routing** - Use shallow routing for UI state changes that don't require data fetching
+2. **Dynamic Routes** - Use dynamic routes for resource-based pages
+3. **Route Groups** - Use route groups to organize related routes
+4. **Layout Sharing** - Share layouts between related routes
+
+### State Management Guidelines
+
+1. **Local State First** - Use React's useState for component-local state
+2. **Context for Cross-Cutting Concerns** - Use React Context for theme, auth, etc.
+3. **Zustand for Complex State** - Use Zustand for more complex global state
+4. **Server State with React Query** - Use React Query for server state management
+
+### Performance Guidelines
+
+1. **Server Components by Default** - Use Server Components when possible
+2. **Client Components When Needed** - Use Client Components for interactive UIs
+3. **Image Optimization** - Always use Next.js Image component
+4. **Font Optimization** - Always use Next.js Font module
+5. **Code Splitting** - Use dynamic imports for large components
+
+## Resources
+
+- [Next.js Documentation](https://nextjs.org/docs)
+- [React Documentation](https://react.dev/)
+- [TypeScript Documentation](https://www.typescriptlang.org/docs/)
+- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
+- [shadcn/ui Documentation](https://ui.shadcn.com/)
+- [Zustand Documentation](https://github.com/pmndrs/zustand)
+- [React Query Documentation](https://tanstack.com/query/latest)

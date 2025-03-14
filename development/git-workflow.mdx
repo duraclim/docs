@@ -1,0 +1,440 @@
+---
+title: Git Workflow
+description: Standard Git workflow and best practices for Duraclim IT projects
+icon: git-alt
+---
+
+# Git Workflow
+
+This guide outlines our standard Git workflow and best practices to ensure consistent and efficient collaboration across all Duraclim IT projects.
+
+<Frame>
+  <img src="/images/git-workflow-diagram.png" alt="Git Workflow Diagram" className="rounded-lg" />
+</Frame>
+
+## Branch Strategy
+
+We follow a modified GitFlow workflow with the following branch types:
+
+<AccordionGroup>
+  <Accordion title="main">
+    The production branch containing the code currently deployed to production.
+    
+    - Always deployable
+    - Protected from direct commits
+    - Only accepts merges from release branches and hotfixes
+  </Accordion>
+  
+  <Accordion title="develop">
+    The main development branch containing the latest code for the next release.
+    
+    - Integration branch for all feature branches
+    - May not be stable at all times
+    - Used for testing the next release
+  </Accordion>
+  
+  <Accordion title="feature/[name]">
+    Branches for developing new features or enhancements.
+    
+    - Always branched from `develop`
+    - Merged back into `develop` when the feature is complete
+    - Should be named descriptively: `feature/add-cart-functionality`
+  </Accordion>
+  
+  <Accordion title="fix/[name]">
+    Branches for fixing bugs in the development environment.
+    
+    - Branched from `develop`
+    - Merged back into `develop` when the fix is complete
+    - Should be named descriptively: `fix/cart-total-calculation`
+  </Accordion>
+  
+  <Accordion title="release/[version]">
+    Branches for preparing releases.
+    
+    - Branched from `develop` when it contains all features for a release
+    - Only accepts bug fixes, documentation updates, and other release-oriented changes
+    - Merged into both `main` and `develop` when ready
+    - Named with version numbers: `release/1.2.0`
+  </Accordion>
+  
+  <Accordion title="hotfix/[name]">
+    Branches for critical fixes to production code.
+    
+    - Branched from `main`
+    - Merged into both `main` and `develop` when the fix is complete
+    - Named descriptively: `hotfix/critical-auth-vulnerability`
+  </Accordion>
+</AccordionGroup>
+
+## Workflow Steps
+
+### Starting a New Feature
+
+<Steps>
+  <Step title="Ensure develop is up to date">
+    ```bash
+    git checkout develop
+    git pull origin develop
+    ```
+  </Step>
+  
+  <Step title="Create a feature branch">
+    ```bash
+    git checkout -b feature/my-new-feature
+    ```
+  </Step>
+  
+  <Step title="Implement the feature">
+    Make changes, add files, and commit regularly with meaningful commit messages
+  </Step>
+  
+  <Step title="Keep your branch updated">
+    Regularly update your branch with changes from develop:
+    ```bash
+    git checkout develop
+    git pull origin develop
+    git checkout feature/my-new-feature
+    git merge develop
+    ```
+    
+    Resolve any conflicts that arise
+  </Step>
+  
+  <Step title="Create a pull request">
+    When the feature is complete, push your branch and create a pull request into `develop`
+    ```bash
+    git push origin feature/my-new-feature
+    ```
+  </Step>
+</Steps>
+
+### Fixing a Bug
+
+<Steps>
+  <Step title="Create a fix branch">
+    ```bash
+    git checkout develop
+    git pull origin develop
+    git checkout -b fix/bug-description
+    ```
+  </Step>
+  
+  <Step title="Implement the fix">
+    Make the necessary changes to fix the bug
+  </Step>
+  
+  <Step title="Create a pull request">
+    Push your branch and create a pull request into `develop`
+    ```bash
+    git push origin fix/bug-description
+    ```
+  </Step>
+</Steps>
+
+### Creating a Release
+
+<Steps>
+  <Step title="Create a release branch">
+    ```bash
+    git checkout develop
+    git pull origin develop
+    git checkout -b release/1.2.0
+    ```
+  </Step>
+  
+  <Step title="Finalize the release">
+    - Update version numbers in code
+    - Update CHANGELOG.md
+    - Fix any minor issues
+  </Step>
+  
+  <Step title="Merge to main">
+    When the release is ready:
+    ```bash
+    git checkout main
+    git pull origin main
+    git merge release/1.2.0
+    git push origin main
+    ```
+  </Step>
+  
+  <Step title="Create a tag">
+    ```bash
+    git tag -a v1.2.0 -m "Version 1.2.0"
+    git push origin v1.2.0
+    ```
+  </Step>
+  
+  <Step title="Merge back to develop">
+    ```bash
+    git checkout develop
+    git pull origin develop
+    git merge release/1.2.0
+    git push origin develop
+    ```
+  </Step>
+</Steps>
+
+### Implementing a Hotfix
+
+<Steps>
+  <Step title="Create a hotfix branch">
+    ```bash
+    git checkout main
+    git pull origin main
+    git checkout -b hotfix/critical-fix
+    ```
+  </Step>
+  
+  <Step title="Implement the fix">
+    Make the necessary changes to fix the critical issue
+  </Step>
+  
+  <Step title="Merge to main">
+    ```bash
+    git checkout main
+    git pull origin main
+    git merge hotfix/critical-fix
+    git push origin main
+    ```
+  </Step>
+  
+  <Step title="Create a tag">
+    ```bash
+    git tag -a v1.2.1 -m "Hotfix: Critical issue fix"
+    git push origin v1.2.1
+    ```
+  </Step>
+  
+  <Step title="Merge to develop">
+    ```bash
+    git checkout develop
+    git pull origin develop
+    git merge hotfix/critical-fix
+    git push origin develop
+    ```
+  </Step>
+</Steps>
+
+## Commit Guidelines
+
+We follow the [Conventional Commits](https://www.conventionalcommits.org/) specification for commit messages:
+
+```
+type(scope): description
+
+[optional body]
+
+[optional footer]
+```
+
+### Types
+
+- `feat`: A new feature
+- `fix`: A bug fix
+- `docs`: Documentation changes
+- `style`: Changes that don't affect the code's meaning (formatting, etc.)
+- `refactor`: Code changes that neither fix a bug nor add a feature
+- `perf`: Performance improvements
+- `test`: Adding or correcting tests
+- `chore`: Changes to the build process or tools
+
+### Examples
+
+```
+feat(cart): add ability to adjust quantities
+
+- Added +/- buttons to cart items
+- Implemented quantity validation
+- Updated cart total calculation
+
+Closes #123
+```
+
+```
+fix(auth): resolve token refresh issue during session expiration
+
+The application was not correctly refreshing tokens when the session
+expired, causing users to be unexpectedly logged out. This fix
+implements proper token refresh logic.
+
+Fixes #456
+```
+
+## Pull Request Guidelines
+
+When creating a pull request:
+
+1. Use a clear, descriptive title
+2. Include a detailed description of the changes
+3. Reference any related issues using the issue number (#123)
+4. Assign appropriate reviewers
+5. Add relevant labels
+
+<Frame>
+  <img src="/images/pull-request-example.png" alt="Pull Request Example" className="rounded-lg" />
+</Frame>
+
+### Pull Request Template
+
+We use the following template for pull requests:
+
+```markdown
+## Description
+Briefly describe the changes in this pull request.
+
+## Related Issues
+Closes #issue_number
+
+## Type of Change
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Breaking change
+- [ ] Documentation update
+
+## How Has This Been Tested?
+Describe the tests you ran to verify your changes.
+
+## Checklist
+- [ ] My code follows the style guidelines of this project
+- [ ] I have performed a self-review of my own code
+- [ ] I have commented my code, particularly in hard-to-understand areas
+- [ ] I have made corresponding changes to the documentation
+- [ ] My changes generate no new warnings
+- [ ] I have added tests that prove my fix is effective or that my feature works
+- [ ] New and existing unit tests pass locally with my changes
+```
+
+## Code Review Process
+
+### Reviewer Guidelines
+
+When reviewing code, focus on:
+
+1. **Functionality** - Does the code work as expected?
+2. **Code quality** - Is the code readable, maintainable, and following our standards?
+3. **Performance** - Are there any obvious performance issues?
+4. **Security** - Are there any security concerns?
+5. **Tests** - Are the tests appropriate and adequate?
+
+### Author Guidelines
+
+When responding to reviews:
+
+1. Address all comments
+2. Explain your reasoning for not making certain changes if applicable
+3. Update the PR with requested changes
+4. Request another review when ready
+
+## Git Hooks
+
+We use Git hooks to automate certain checks before commits and pushes:
+
+### Pre-commit Hook
+
+Our pre-commit hook:
+
+1. Runs linters on changed files
+2. Formats code according to our standards
+3. Runs relevant tests
+
+To set up the pre-commit hook:
+
+```bash
+npm install --save-dev husky lint-staged
+npx husky install
+npx husky add .husky/pre-commit "npx lint-staged"
+```
+
+Configure `lint-staged` in `package.json`:
+
+```json
+"lint-staged": {
+  "*.{js,jsx,ts,tsx}": [
+    "eslint --fix",
+    "prettier --write"
+  ],
+  "*.{json,md}": [
+    "prettier --write"
+  ]
+}
+```
+
+## Best Practices
+
+### Keep Branches Short-lived
+
+- Feature branches should typically not live longer than 1-2 weeks
+- If a feature is larger, break it down into smaller, manageable pieces
+
+### Commit Frequently
+
+- Make small, focused commits
+- Each commit should represent a logical unit of work
+- Avoid "work in progress" commits
+
+### Write Meaningful Commit Messages
+
+- Be specific about what changes are included
+- Make it clear why the change was made
+- Reference issue numbers when applicable
+
+### Keep Pull Requests Focused
+
+- A PR should address a single concern
+- Avoid mixing unrelated changes
+- Large PRs (>300 lines) are harder to review effectively
+
+### Resolve Conflicts Promptly
+
+- Keep your branch updated with the latest changes from its parent branch
+- Resolve conflicts as soon as they appear
+
+## Troubleshooting
+
+### Undoing a Commit
+
+If you need to undo the last commit but keep the changes:
+
+```bash
+git reset --soft HEAD~1
+```
+
+If you need to completely discard the last commit and its changes:
+
+```bash
+git reset --hard HEAD~1
+```
+
+### Stashing Changes
+
+To temporarily save changes without committing:
+
+```bash
+git stash save "work in progress on feature X"
+```
+
+To apply the stashed changes later:
+
+```bash
+git stash list
+git stash apply stash@{0}
+```
+
+### Resolving Merge Conflicts
+
+When you encounter merge conflicts:
+
+1. Use `git status` to see which files have conflicts
+2. Open each file and look for conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`)
+3. Resolve each conflict by choosing one version or merging them
+4. Mark the conflict as resolved with `git add <filename>`
+5. Complete the merge with `git commit`
+
+## Git Resources
+
+- [Git Cheat Sheet](https://education.github.com/git-cheat-sheet-education.pdf)
+- [Conventional Commits](https://www.conventionalcommits.org/)
+- [GitFlow Workflow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow)
+- [Git Flight Rules](https://github.com/k88hudson/git-flight-rules) - A guide for what to do when things go wrong

@@ -1,0 +1,246 @@
+---
+title: Duraclim Calculator
+description: Documentation for our Next.js-based service pricing calculator
+icon: calculator
+---
+
+# Duraclim Calculator
+
+The Duraclim Calculator is a Next.js application that helps sales representatives and customers determine pricing for our various cleaning services. It provides accurate, consistent pricing calculations for residential (Casa) and condominium (Condo) services.
+
+<Frame>
+  <img src="/images/calculator-overview.png" alt="Calculator Overview" className="rounded-lg" />
+</Frame>
+
+## Project Overview
+
+### Purpose and Features
+
+The calculator provides:
+
+- Consistent pricing across all sales representatives
+- Easy-to-use interface for quick quotations
+- Support for both residential and condominium services
+- Integration with our CRM (Pipedrive)
+- Multi-language support (English and French)
+- Shopping cart functionality for multiple services
+- Invoice generation
+
+### Tech Stack
+
+- **Framework**: Next.js 14 with App Router
+- **State Management**: Zustand for global state
+- **Authentication**: Supabase Auth
+- **Styling**: Tailwind CSS with shadcn/ui components
+- **Database**: PostgreSQL via Supabase
+- **Deployment**: Docker and Vercel
+
+## Project Structure
+
+The calculator follows a modular structure, with clear separation of concerns:
+
+<AccordionGroup>
+  <Accordion title="App Directory Structure">
+    ```
+    app/
+    ├── [locale]/              # Internationalization routes
+    │   ├── (auth)/            # Authentication routes
+    │   │   └── login/         # Login page
+    │   ├── (calculator)/      # Calculator routes
+    │   │   ├── casa/          # Residential calculator
+    │   │   └── condo/         # Condominium calculator
+    │   ├── api/               # API routes
+    │   │   ├── analytics/     # Analytics endpoints
+    │   │   ├── health/        # Health check endpoint
+    │   │   ├── invoice/       # Invoice generation
+    │   │   ├── mapbox/        # MapBox integration
+    │   │   └── users/         # User management
+    │   └── dashboard/         # Admin dashboard
+    └── layout.tsx             # Root layout
+    ```
+  </Accordion>
+
+  <Accordion title="Components Structure">
+    ```
+    components/
+    ├── calculator/            # Calculator-specific components
+    │   ├── aircommun/         # Air common service components
+    │   ├── casa/              # Residential service components
+    │   ├── condo/             # Condominium service components
+    │   ├── cart/              # Shopping cart components
+    │   └── calculator-navbar/ # Calculator navigation
+    ├── dashboard/             # Dashboard components
+    ├── home/                  # Homepage components
+    └── providers/             # Context providers
+    ```
+  </Accordion>
+
+  <Accordion title="State Management">
+    ```
+    lib/
+    ├── stores/                # Zustand stores
+    │   ├── useAirCommunStore.ts  # Air common service state
+    │   ├── useAppStore.ts        # Application state
+    │   ├── useCartStore.ts       # Shopping cart state
+    │   ├── useCasaStore.ts       # Residential service state
+    │   ├── useCondoStore.ts      # Condominium service state
+    │   └── useDateRangeStore.ts  # Date range selection state
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Core Calculators
+
+The application includes three main calculators:
+
+### 1. Casa (Residential) Calculator
+
+The Casa calculator determines pricing for residential duct cleaning services based on:
+
+- Number of vents
+- Home size (square footage)
+- Additional services (sanitization, etc.)
+- Dryer vent cleaning
+
+<Frame>
+  <img src="/images/casa-calculator.png" alt="Casa Calculator" className="rounded-lg" />
+</Frame>
+
+### 2. Condo Calculator
+
+The Condo calculator determines pricing for condominium cleaning services based on:
+
+- Condominium type
+- Number of vents
+- Additional services
+- Building location
+
+<Frame>
+  <img src="/images/condo-calculator.png" alt="Condo Calculator" className="rounded-lg" />
+</Frame>
+
+### 3. Air Commun Calculator
+
+The Air Commun calculator handles specialized air quality services for larger buildings.
+
+## Key Components
+
+### Cart System
+
+The cart system allows users to add multiple services to a quotation:
+
+```typescript
+// Path: components/calculator/cart/cart-drawer.tsx
+export function CartDrawer() {
+  const { items, total } = useCartStore();
+  const { isCartOpen, toggleCart } = useAppStore();
+  
+  // Implementation details...
+}
+```
+
+### Pricing Calculations
+
+Pricing calculations are handled by specialized functions in each service store:
+
+```typescript
+// Path: lib/stores/useCasaStore.ts
+export const useCasaStore = create<CasaStore>((set, get) => ({
+  // State properties...
+  
+  calculatePrice: () => {
+    const { vents, squareFootage, additionalServices } = get();
+    // Calculation logic...
+    return finalPrice;
+  },
+}));
+```
+
+### Multi-language Support
+
+The application supports English and French through Next.js's internationalization features:
+
+```typescript
+// Path: i18n/routing.ts
+export const locales = ['en', 'fr'] as const;
+export const defaultLocale = 'en' as const;
+```
+
+## Getting Started with Development
+
+To start developing on the calculator:
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/duraclim/duraclim-calculator.git
+    cd duraclim-calculator
+    ```
+  </Step>
+  
+  <Step title="Install dependencies">
+    ```bash
+    npm install
+    ```
+  </Step>
+  
+  <Step title="Set up environment variables">
+    ```bash
+    cp .env.example .env.local
+    # Edit .env.local with your local values
+    ```
+  </Step>
+  
+  <Step title="Start development server">
+    ```bash
+    npm run dev
+    ```
+  </Step>
+</Steps>
+
+## Deployment
+
+The calculator is deployed in two environments:
+
+1. **Production**: Deployed via GitHub Actions to Vercel
+2. **Development**: Available for testing at dev.calculator.duraclim.com
+
+### Docker Deployment
+
+The application can also be deployed using Docker:
+
+```bash
+# Build the Docker image
+docker build -t duraclim-calculator .
+
+# Run the container
+docker run -p 3000:3000 duraclim-calculator
+```
+
+## Testing
+
+The calculator includes both unit and end-to-end tests:
+
+```bash
+# Run unit tests
+npm test
+
+# Run Playwright e2e tests
+npm run test:e2e
+```
+
+## Contributing
+
+When contributing to the calculator, please follow these guidelines:
+
+1. Use the established component structure
+2. Add unit tests for new functionality
+3. Use the Zustand stores for state management
+4. Follow the established naming conventions
+5. Support both languages (EN/FR) for any user-facing text
+
+## Additional Resources
+
+- [Design Mockups (Figma)](https://figma.com/file/example-link)
+- [API Documentation](/api/overview)
+- [Deployment Pipeline](/projects/nextjs/deployment)

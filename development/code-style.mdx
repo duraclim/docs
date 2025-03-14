@@ -1,0 +1,408 @@
+---
+title: Code Style and Standards
+description: Coding standards and style guidelines for Duraclim IT development
+icon: code
+---
+
+# Code Style and Standards
+
+Consistent code style and standards help our team maintain high-quality, readable, and maintainable code across all our projects. This document outlines our standard practices for each programming language and framework we use.
+
+<Frame>
+  <img src="/images/code-quality.png" alt="Code Quality" className="rounded-lg" />
+</Frame>
+
+## General Principles
+
+Regardless of the language or framework, we follow these core principles:
+
+1. **Readability** - Code should be easy to read and understand.
+2. **Maintainability** - Code should be easy to modify and extend.
+3. **Testability** - Code should be designed to facilitate testing.
+4. **Consistency** - Follow established patterns and conventions.
+5. **DRY (Don't Repeat Yourself)** - Avoid code duplication.
+
+## TypeScript/JavaScript
+
+Our frontend applications primarily use TypeScript, with JavaScript used where appropriate.
+
+### Formatting
+
+We use [Prettier](https://prettier.io/) for code formatting with the following configuration:
+
+```json
+// .prettierrc
+{
+  "semi": true,
+  "trailingComma": "es5",
+  "singleQuote": true,
+  "printWidth": 100,
+  "tabWidth": 2
+}
+```
+
+### Linting
+
+We use [ESLint](https://eslint.org/) for code linting with rules extending from:
+
+- `eslint:recommended`
+- `plugin:@typescript-eslint/recommended`
+- `plugin:react/recommended` (for React projects)
+- `plugin:react-hooks/recommended` (for React projects)
+
+### TypeScript Standards
+
+<AccordionGroup>
+  <Accordion title="Type Definitions">
+    - Use explicit type definitions for function parameters and return values
+    - Create interfaces or types for complex objects
+    - Avoid using `any` except when absolutely necessary
+    - Use union types instead of overloading functions
+    
+    ```typescript
+    // Good
+    interface User {
+      id: string;
+      name: string;
+      email: string;
+      role: 'admin' | 'user';
+    }
+    
+    function getUser(id: string): Promise<User> {
+      // Implementation
+    }
+    
+    // Bad
+    function getUser(id): any {
+      // Implementation
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Function Declarations">
+    - Use arrow functions for callbacks and anonymous functions
+    - Use named functions for methods and public APIs
+    - Explicitly type parameters and return values
+    
+    ```typescript
+    // Good
+    const handleClick = (event: React.MouseEvent): void => {
+      // Implementation
+    };
+    
+    function calculateTotal(items: CartItem[]): number {
+      return items.reduce((total, item) => total + item.price, 0);
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Variables">
+    - Use `const` by default, `let` when necessary, avoid `var`
+    - Name boolean variables with prefixes like `is`, `has`, or `should`
+    - Use meaningful, descriptive variable names
+    
+    ```typescript
+    // Good
+    const isUserLoggedIn = true;
+    let currentPage = 1;
+    
+    // Bad
+    var flag = true;
+    let p = 1;
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Next.js Standards
+
+- Use the App Router architecture for new projects
+- Separate concerns with route handlers, page components, and UI components
+- Implement proper loading and error states for each route
+- Use server components where appropriate
+- Follow the [Next.js project structure](/projects/nextjs/structure) documentation
+
+### React Component Structure
+
+```tsx
+// Path: components/example/example-component.tsx
+
+// Imports
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
+import { Button } from '@/components/ui/button';
+
+// Types
+interface ExampleProps {
+  title: string;
+  onAction: () => void;
+}
+
+// Component
+export function ExampleComponent({ title, onAction }: ExampleProps) {
+  // State
+  const [isActive, setIsActive] = useState(false);
+  const router = useRouter();
+  
+  // Effects
+  useEffect(() => {
+    // Implementation
+  }, []);
+  
+  // Event handlers
+  const handleClick = () => {
+    setIsActive(true);
+    onAction();
+  };
+  
+  // Helper functions
+  const getButtonText = () => isActive ? 'Active' : 'Inactive';
+  
+  // Render
+  return (
+    <div className="example-container">
+      <h2>{title}</h2>
+      <Button onClick={handleClick}>{getButtonText()}</Button>
+    </div>
+  );
+}
+```
+
+## Go
+
+For our backend services written in Go, we follow these standards:
+
+### Formatting
+
+We use `gofmt` or `goimports` to automatically format code according to Go's official style.
+
+### Package Structure
+
+- One package per directory
+- Package names should be the same as the directory name
+- Use meaningful package names that reflect their purpose
+
+### Naming Conventions
+
+- Use MixedCaps or mixedCaps rather than underscores to write multiword names
+- Acronyms should be all caps (e.g., `HTTP`, `URL`, `API`)
+- Interfaces with a single method should be named with the method name plus 'er' (e.g., `Reader` for `Read()`)
+
+### Function Design
+
+```go
+// Good
+func (c *Client) FetchUserByID(ctx context.Context, id string) (*User, error) {
+    // Implementation
+}
+
+// Bad - missing context, not returning error
+func (c *Client) GetUser(id string) *User {
+    // Implementation
+}
+```
+
+### Error Handling
+
+- Always check for errors
+- Return errors rather than using panic
+- Use custom error types for specific error conditions
+- Use error wrapping to add context
+
+```go
+// Good
+func processFile(path string) error {
+    file, err := os.Open(path)
+    if err != nil {
+        return fmt.Errorf("opening file %s: %w", path, err)
+    }
+    defer file.Close()
+    
+    // Process the file...
+    return nil
+}
+```
+
+### Testing
+
+- Write unit tests for all packages
+- Use table-driven tests for multiple test cases
+- Use subtests for organizing complex tests
+- Use mocks for external dependencies
+
+```go
+func TestHandleRequest(t *testing.T) {
+    tests := []struct {
+        name     string
+        input    string
+        expected string
+        wantErr  bool
+    }{
+        {"valid input", "valid", "processed", false},
+        {"invalid input", "", "", true},
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            result, err := HandleRequest(tt.input)
+            if (err != nil) != tt.wantErr {
+                t.Errorf("HandleRequest() error = %v, wantErr %v", err, tt.wantErr)
+                return
+            }
+            if result != tt.expected {
+                t.Errorf("HandleRequest() = %v, want %v", result, tt.expected)
+            }
+        })
+    }
+}
+```
+
+## SQL
+
+For database schemas and queries, we follow these standards:
+
+### Schema Design
+
+- Table names should be plural (e.g., `users`, `orders`)
+- Column names should be snake_case
+- Primary keys should be named `id`
+- Foreign keys should be named `table_id` (e.g., `user_id`)
+- Include `created_at` and `updated_at` timestamps where appropriate
+
+### Query Style
+
+- Use uppercase for SQL keywords
+- Use lowercase for table and column names
+- Split queries onto multiple lines for readability
+- Use meaningful aliases for table names
+
+```sql
+-- Good
+SELECT 
+    u.id,
+    u.name,
+    u.email,
+    o.id AS order_id,
+    o.total
+FROM 
+    users u
+JOIN 
+    orders o ON u.id = o.user_id
+WHERE 
+    u.status = 'active'
+    AND o.created_at > '2023-01-01'
+ORDER BY 
+    o.created_at DESC
+LIMIT 
+    10;
+```
+
+## Git Workflow
+
+We use a systematic approach to git:
+
+### Branch Naming
+
+- Feature branches: `feature/short-description`
+- Bug fixes: `fix/short-description`
+- Hotfixes: `hotfix/short-description`
+- Release branches: `release/version-number`
+
+### Commit Messages
+
+Follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
+
+```
+type(scope): description
+
+[optional body]
+
+[optional footer]
+```
+
+Where `type` is one of:
+- `feat`: A new feature
+- `fix`: A bug fix
+- `docs`: Documentation changes
+- `style`: Changes that don't affect the code's meaning (formatting, etc.)
+- `refactor`: Code changes that neither fix a bug nor add a feature
+- `perf`: Performance improvements
+- `test`: Adding or correcting tests
+- `chore`: Changes to the build process or tools
+
+Example:
+```
+feat(auth): add OAuth2 login support
+
+- Added Google OAuth2 provider
+- Implemented token refresh mechanism
+- Updated user session handling
+
+Closes #123
+```
+
+## Documentation
+
+- Use clear, concise language
+- Include examples for complex functionality
+- Document public APIs, functions, and interfaces
+- Keep documentation updated when code changes
+
+For inline documentation, follow the language-specific conventions:
+
+### JSDoc (JavaScript/TypeScript)
+
+```typescript
+/**
+ * Calculates the total price of items in the cart.
+ * 
+ * @param {CartItem[]} items - The cart items to calculate
+ * @param {boolean} includeDiscounts - Whether to apply discounts
+ * @returns {number} The total price
+ */
+function calculateTotal(items: CartItem[], includeDiscounts = true): number {
+    // Implementation
+}
+```
+
+### Go Documentation
+
+```go
+// FetchUserByID retrieves a user from the database by their ID.
+// It returns a pointer to the User and any error encountered.
+// If the user is not found, it returns nil and a NotFoundError.
+func (r *Repository) FetchUserByID(ctx context.Context, id string) (*User, error) {
+    // Implementation
+}
+```
+
+## Code Review Guidelines
+
+When reviewing code, focus on:
+
+1. **Functionality** - Does the code work as expected?
+2. **Security** - Are there any security vulnerabilities?
+3. **Performance** - Are there any obvious performance issues?
+4. **Style** - Does the code follow our style guidelines?
+5. **Tests** - Are there appropriate tests for the code?
+6. **Documentation** - Is the code appropriately documented?
+
+<Card title="Code Review Checklist" icon="clipboard-check">
+  <CheckboxField id="functionality" label="Code works as expected" />
+  <CheckboxField id="security" label="No security vulnerabilities" />
+  <CheckboxField id="performance" label="No obvious performance issues" />
+  <CheckboxField id="style" label="Follows style guidelines" />
+  <CheckboxField id="tests" label="Has appropriate tests" />
+  <CheckboxField id="docs" label="Properly documented" />
+</Card>
+
+## Tools and Resources
+
+To help maintain our code standards, we use the following tools:
+
+- [ESLint](https://eslint.org/) - JavaScript/TypeScript linting
+- [Prettier](https://prettier.io/) - Code formatting
+- [golangci-lint](https://golangci-lint.run/) - Go linting
+- [Husky](https://typicode.github.io/husky/) - Git hooks
+- [lint-staged](https://github.com/okonet/lint-staged) - Lint files staged for commit
+
+To set up these tools for a new project, follow the instructions in our [Project Setup Guide](/development/git-workflow).

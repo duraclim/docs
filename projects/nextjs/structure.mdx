@@ -1,0 +1,1174 @@
+---
+title: Next.js Project Structure
+description: Detailed guide to the standardized file and folder structure for Duraclim's Next.js projects
+icon: folder-tree
+---
+
+# Next.js Project Structure
+
+This document outlines the standardized file and folder structure we use for all Duraclim Next.js projects. Following these conventions ensures consistency across projects and makes it easier for developers to work on multiple codebases.
+
+<Frame>
+  <img src="/images/nextjs-project-structure.png" alt="Next.js Project Structure" className="rounded-lg" />
+</Frame>
+
+## Root Directory Structure
+
+```
+duraclim-project/                # Root project directory
+├── app/                         # Next.js App Router directory
+├── components/                  # React components
+├── lib/                         # Utility libraries and functions
+├── public/                      # Static files
+├── styles/                      # Global styles
+├── types/                       # TypeScript type definitions
+├── config/                      # Configuration files
+├── messages/                    # i18n message files
+├── tests/                       # Test files
+├── middleware.ts                # Next.js middleware
+├── next.config.mjs              # Next.js configuration
+├── package.json                 # Project dependencies
+├── tsconfig.json                # TypeScript configuration
+└── tailwind.config.js           # Tailwind CSS configuration
+```
+
+## App Directory
+
+The `app` directory uses Next.js 14+ App Router architecture:
+
+```
+app/
+├── [locale]/                    # Internationalization routes
+│   ├── (auth)/                  # Auth route group (doesn't affect URL)
+│   │   ├── login/               # Login route
+│   │   │   ├── page.tsx         # Login page component
+│   │   │   ├── error.tsx        # Error handling for login page
+│   │   │   └── loading.tsx      # Loading state for login page
+│   │   └── register/            # Registration route
+│   │       └── page.tsx         # Registration page component
+│   ├── (dashboard)/             # Dashboard route group
+│   │   ├── layout.tsx           # Dashboard layout with sidebar
+│   │   ├── page.tsx             # Dashboard homepage
+│   │   ├── settings/            # Settings route
+│   │   │   └── page.tsx         # Settings page component
+│   │   └── users/               # Users management route
+│   │       ├── page.tsx         # Users list page
+│   │       └── [id]/            # Dynamic route for user details
+│   │           └── page.tsx     # User details page
+│   ├── api/                     # API routes
+│   │   ├── auth/                # Authentication endpoints
+│   │   │   └── [...nextauth]/   # NextAuth.js API route
+│   │   └── users/               # User-related endpoints
+│   │       ├── route.ts         # User list/create endpoint
+│   │       └── [id]/            # User-specific endpoints
+│   │           └── route.ts     # User get/update/delete endpoint
+│   ├── layout.tsx               # Root layout with providers
+│   ├── page.tsx                 # Homepage
+│   ├── error.tsx                # Global error component
+│   ├── not-found.tsx            # 404 page component
+│   └── loading.tsx              # Global loading component
+├── layout.tsx                   # Root layout
+├── page.tsx                     # Redirect to localized homepage
+└── robots.ts                    # Robots config for SEO
+```
+
+### Route Groups
+
+We use route groups (in parentheses) to:
+
+1. Organize routes by feature or section
+2. Share layouts between related routes
+3. Split the application into logical segments
+
+```tsx
+// Path: app/[locale]/(dashboard)/layout.tsx
+import { DashboardSidebar } from '@/components/dashboard/sidebar';
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-h-screen">
+      <DashboardSidebar />
+      <main className="flex-1 p-6">{children}</main>
+    </div>
+  );
+}
+```
+
+### API Routes
+
+API routes are organized by resource and follow RESTful conventions:
+
+```typescript
+// Path: app/[locale]/api/users/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+
+export async function GET(request: NextRequest) {
+  // Handler for GET /api/users
+  const supabase = createClient();
+  
+  // Get query parameters
+  const searchParams = request.nextUrl.searchParams;
+  const limit = searchParams.get('limit') || '10';
+  const page = searchParams.get('page') || '1';
+  
+  // Calculate offset for pagination
+  const offset = (parseInt(page) - 1) * parseInt(limit);
+  
+  // Fetch users with pagination
+  const { data, error, count } = await supabase
+    .from('users')
+    .select('*', { count: 'exact' })
+    .range(offset, offset + parseInt(limit) - 1);
+    
+  if (error) {
+    return NextResponse.json(
+      { error: 'Failed to fetch users' },
+      { status: 500 }
+    );
+  }
+  
+  return NextResponse.json({
+    users: data,
+    pagination: {
+      total: count,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      pages: Math.ceil(count / parseInt(limit)),
+    },
+  });
+}
+
+export async function POST(request: NextRequest) {
+  // Handler for POST /api/users
+  try {
+    const body = await request.json();
+    
+    // Create user logic here
+    
+    return NextResponse.json(
+      { user: newUser },
+      { status: 201 }
+    );
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to create user' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+## Components Directory
+
+Components are organized by feature and type:
+
+```
+components/
+├── ui/                         # Reusable UI components
+│   ├── button.tsx              # Button component
+│   ├── card.tsx                # Card component
+│   ├── form/                   # Form components
+│   │   ├── input.tsx           # Input component
+│   │   ├── checkbox.tsx        # Checkbox component
+│   │   └── select.tsx          # Select component
+│   ├── layout/                 # Layout components
+│   │   ├── container.tsx       # Container component
+│   │   └── section.tsx         # Section component
+│   └── navigation/             # Navigation components
+│       ├── navbar.tsx          # Navbar component
+│       └── tabs.tsx            # Tabs component
+├── auth/                       # Authentication components
+│   ├── login-form.tsx          # Login form
+│   └── register-form.tsx       # Registration form
+├── dashboard/                  # Dashboard-specific components
+│   ├── sidebar.tsx             # Dashboard sidebar
+│   ├── stats-card.tsx          # Statistics card
+│   └── activity-feed.tsx       # Activity feed
+├── shared/                     # Shared components used across features
+│   ├── page-header.tsx         # Page header with title and actions
+│   ├── loading-spinner.tsx     # Loading spinner
+│   └── error-boundary.tsx      # Error boundary component
+└── [feature-name]/             # Feature-specific components
+    ├── feature-list.tsx        # List component for the feature
+    └── feature-details.tsx     # Details component for the feature
+```
+
+### Component Structure
+
+Each component follows a consistent structure:
+
+```tsx
+// Path: components/ui/button.tsx
+import * as React from 'react';
+import { cva, type VariantProps } from 'class-variance-authority';
+import { cn } from '@/lib/utils';
+
+// Define button variants using class-variance-authority
+const buttonVariants = cva(
+  'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background',
+  {
+    variants: {
+      variant: {
+        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+        destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+        outline: 'border border-input hover:bg-accent hover:text-accent-foreground',
+        secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+        ghost: 'hover:bg-accent hover:text-accent-foreground',
+        link: 'underline-offset-4 hover:underline text-primary',
+      },
+      size: {
+        default: 'h-10 py-2 px-4',
+        sm: 'h-9 px-3 rounded-md',
+        lg: 'h-11 px-8 rounded-md',
+        icon: 'h-10 w-10',
+      },
+    },
+    defaultVariants: {
+      variant: 'default',
+      size: 'default',
+    },
+  }
+);
+
+// Define the button props interface
+export interface ButtonProps 
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
+}
+
+// Define the Button component
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    // If asChild is true, render the children as the button
+    const Comp = asChild ? Slot : 'button';
+    
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        {...props}
+      />
+    );
+  }
+);
+
+Button.displayName = 'Button';
+
+export { Button, buttonVariants };
+```
+
+## Library Directory
+
+The `lib` directory contains utility functions, hooks, and service integrations:
+
+```
+lib/
+├── hooks/                       # Custom React hooks
+│   ├── use-auth.ts              # Authentication hook
+│   ├── use-media-query.ts       # Media query hook
+│   ├── use-debounce.ts          # Debounce hook
+│   └── use-local-storage.ts     # Local storage hook
+├── utils/                       # Utility functions
+│   ├── formatting.ts            # Date, currency, number formatting
+│   ├── validation.ts            # Validation functions
+│   └── helpers.ts               # Miscellaneous helper functions
+├── api/                         # API client functions
+│   ├── client.ts                # Base API client
+│   ├── users.ts                 # User-related API functions
+│   └── products.ts              # Product-related API functions
+├── supabase/                    # Supabase integration
+│   ├── client.ts                # Client-side Supabase client
+│   ├── server.ts                # Server-side Supabase client
+│   └── middleware.ts            # Supabase middleware helpers
+├── stores/                      # State management stores
+│   ├── use-cart-store.ts        # Cart state with Zustand
+│   └── use-theme-store.ts       # Theme state with Zustand
+└── schemas/                     # Validation schemas
+    ├── user-schema.ts           # User validation schema
+    └── product-schema.ts        # Product validation schema
+```
+
+### Hook Example
+
+```typescript
+// Path: lib/hooks/use-local-storage.ts
+import { useState, useEffect } from 'react';
+
+export function useLocalStorage<T>(key: string, initialValue: T) {
+  // State to store our value
+  const [storedValue, setStoredValue] = useState<T>(() => {
+    if (typeof window === 'undefined') {
+      return initialValue;
+    }
+    
+    try {
+      // Get from local storage by key
+      const item = window.localStorage.getItem(key);
+      // Parse stored json or if none return initialValue
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      // If error also return initialValue
+      console.error(`Error reading localStorage key "${key}":`, error);
+      return initialValue;
+    }
+  });
+  
+  // Return a wrapped version of useState's setter function that ...
+  // ... persists the new value to localStorage.
+  const setValue = (value: T | ((val: T) => T)) => {
+    try {
+      // Allow value to be a function so we have same API as useState
+      const valueToStore =
+        value instanceof Function ? value(storedValue) : value;
+      
+      // Save state
+      setStoredValue(valueToStore);
+      
+      // Save to local storage
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(key, JSON.stringify(valueToStore));
+      }
+    } catch (error) {
+      console.error(`Error setting localStorage key "${key}":`, error);
+    }
+  };
+  
+  // Listen for changes to this localStorage value in other tabs/windows
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === key && e.newValue) {
+        setStoredValue(JSON.parse(e.newValue));
+      }
+    };
+    
+    // Add event listener
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Remove event listener on cleanup
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [key]);
+  
+  return [storedValue, setValue] as const;
+}
+```
+
+### API Client Example
+
+```typescript
+// Path: lib/api/users.ts
+import { apiClient } from './client';
+import { UserSchema, type User, type CreateUserInput } from '@/types/user';
+
+export async function getUsers(params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+}) {
+  return apiClient.get('/api/users', { params });
+}
+
+export async function getUser(id: string) {
+  return apiClient.get(`/api/users/${id}`);
+}
+
+export async function createUser(user: CreateUserInput) {
+  // Validate the user input against the schema
+  const result = UserSchema.safeParse(user);
+  
+  if (!result.success) {
+    throw new Error(`Invalid user data: ${result.error.message}`);
+  }
+  
+  return apiClient.post('/api/users', result.data);
+}
+
+export async function updateUser(id: string, user: Partial<User>) {
+  return apiClient.patch(`/api/users/${id}`, user);
+}
+
+export async function deleteUser(id: string) {
+  return apiClient.delete(`/api/users/${id}`);
+}
+```
+
+## Types Directory
+
+The `types` directory contains TypeScript type definitions:
+
+```
+types/
+├── api/                         # API-related types
+│   ├── requests.ts              # Request types
+│   └── responses.ts             # Response types
+├── auth/                        # Authentication types
+│   └── index.ts                 # User, session, etc.
+├── database/                    # Database types
+│   └── schema.ts                # Database schema types
+├── ui/                          # UI component types
+│   └── index.ts                 # Common UI types
+├── common.ts                    # Common shared types
+└── index.ts                     # Type re-exports
+```
+
+### Type Definitions Example
+
+```typescript
+// Path: types/auth/index.ts
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: 'admin' | 'user' | 'guest';
+  avatar_url?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Session {
+  user: User;
+  access_token: string;
+  expires_at: number;
+}
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface RegisterCredentials {
+  email: string;
+  password: string;
+  name: string;
+}
+
+export interface AuthState {
+  user: User | null;
+  session: Session | null;
+  isLoading: boolean;
+  error: string | null;
+}
+```
+
+## Configuration Directory
+
+The `config` directory contains application configuration:
+
+```
+config/
+├── site.ts                      # Website configuration
+├── navigation.ts                # Navigation configuration
+├── features.ts                  # Feature flags
+└── constants.ts                 # Application constants
+```
+
+### Configuration Example
+
+```typescript
+// Path: config/site.ts
+export const siteConfig = {
+  name: 'Duraclim',
+  description: 'Professional cleaning services for residential and commercial needs',
+  url: 'https://duraclim.com',
+  ogImage: 'https://duraclim.com/og-image.jpg',
+  links: {
+    twitter: 'https://twitter.com/duraclim',
+    github: 'https://github.com/duraclim',
+  },
+  contactEmail: 'info@duraclim.com',
+  supportEmail: 'support@duraclim.com',
+};
+
+// Path: config/navigation.ts
+export const mainNavigation = [
+  {
+    title: 'Home',
+    href: '/',
+  },
+  {
+    title: 'Services',
+    href: '/services',
+    children: [
+      {
+        title: 'Residential',
+        href: '/services/residential',
+      },
+      {
+        title: 'Commercial',
+        href: '/services/commercial',
+      },
+    ],
+  },
+  {
+    title: 'Calculator',
+    href: '/calculator',
+  },
+  {
+    title: 'About',
+    href: '/about',
+  },
+  {
+    title: 'Contact',
+    href: '/contact',
+  },
+];
+
+export const dashboardNavigation = [
+  {
+    title: 'Dashboard',
+    href: '/dashboard',
+    icon: 'dashboard',
+  },
+  {
+    title: 'Clients',
+    href: '/dashboard/clients',
+    icon: 'users',
+  },
+  {
+    title: 'Services',
+    href: '/dashboard/services',
+    icon: 'services',
+  },
+  {
+    title: 'Calendar',
+    href: '/dashboard/calendar',
+    icon: 'calendar',
+  },
+  {
+    title: 'Reports',
+    href: '/dashboard/reports',
+    icon: 'chart',
+  },
+  {
+    title: 'Settings',
+    href: '/dashboard/settings',
+    icon: 'settings',
+  },
+];
+```
+
+## Public Directory
+
+The `public` directory contains static files:
+
+```
+public/
+├── favicon.ico                  # Website favicon
+├── logo.svg                     # Company logo
+├── robots.txt                   # Robots file for SEO
+├── sitemap.xml                  # Sitemap for SEO
+├── images/                      # Static images
+│   ├── hero.jpg                 # Hero image
+│   ├── about.jpg                # About page image
+│   └── team/                    # Team member photos
+│       ├── person1.jpg          # Team member 1
+│       └── person2.jpg          # Team member 2
+└── fonts/                       # Custom fonts
+    ├── custom-font.woff2        # Web font file
+    └── custom-font.woff         # Web font fallback
+```
+
+## Styles Directory
+
+The `styles` directory contains global CSS styles:
+
+```
+styles/
+├── globals.css                  # Global styles
+└── tailwind.css                 # Tailwind CSS imports
+```
+
+### Global Styles Example
+
+```css
+/* Path: styles/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 47.4% 11.2%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 47.4% 11.2%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 100% 50%;
+    --destructive-foreground: 210 40% 98%;
+    --ring: 215 20.2% 65.1%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 224 71% 4%;
+    --foreground: 213 31% 91%;
+    --muted: 223 47% 11%;
+    --muted-foreground: 215.4 16.3% 56.9%;
+    --accent: 216 34% 17%;
+    --accent-foreground: 210 40% 98%;
+    --popover: 224 71% 4%;
+    --popover-foreground: 215 20.2% 65.1%;
+    --border: 216 34% 17%;
+    --input: 216 34% 17%;
+    --card: 224 71% 4%;
+    --card-foreground: 213 31% 91%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 1.2%;
+    --secondary: 222.2 47.4% 11.2%;
+    --secondary-foreground: 210 40% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --ring: 216 34% 17%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+```
+
+## Messages Directory
+
+The `messages` directory contains internationalization files:
+
+```
+messages/
+├── en.json                      # English translations
+└── fr.json                      # French translations
+```
+
+## Tests Directory
+
+The `tests` directory contains test files:
+
+```
+tests/
+├── e2e/                         # End-to-end tests with Playwright
+│   ├── auth.spec.ts             # Authentication tests
+│   ├── dashboard.spec.ts        # Dashboard tests
+│   └── utils/                   # Test utilities
+│       └── test-helpers.ts      # Helper functions for tests
+├── unit/                        # Unit tests with Jest
+│   ├── components/              # Component tests
+│   │   ├── ui/                  # UI component tests
+│   │   │   └── button.test.tsx  # Button component test
+│   │   └── auth/                # Auth component tests
+│   │       └── login-form.test.tsx # Login form test
+│   └── utils/                   # Utility function tests
+│       └── formatting.test.ts   # Formatting utilities test
+└── integration/                 # Integration tests
+    ├── api/                     # API integration tests
+    │   └── users.test.ts        # Users API test
+    └── hooks/                   # Hook integration tests
+        └── use-auth.test.ts     # Auth hook test
+```
+
+## Root Configuration Files
+
+```
+next.config.mjs                  # Next.js configuration
+tailwind.config.js               # Tailwind CSS configuration
+tsconfig.json                    # TypeScript configuration
+jest.config.js                   # Jest configuration
+package.json                    # Package dependencies
+middleware.ts                   # Next.js middleware
+```
+
+### Next.js Configuration
+
+```javascript
+// Path: next.config.mjs
+import createNextIntlPlugin from 'next-intl/plugin';
+
+const withNextIntl = createNextIntlPlugin();
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  images: {
+    domains: ['images.unsplash.com', 'assets.duraclim.com'],
+    formats: ['image/avif', 'image/webp'],
+  },
+  experimental: {
+    serverActions: true,
+    typedRoutes: true,
+  },
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          {
+            key: 'X-XSS-Protection',
+            value: '1; mode=block',
+          },
+        ],
+      },
+    ];
+  },
+};
+
+export default withNextIntl(nextConfig);
+```
+
+### TypeScript Configuration
+
+```json
+// Path: tsconfig.json
+{
+  "compilerOptions": {
+    "target": "es5",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
+```
+
+### Tailwind Configuration
+
+```javascript
+// Path: tailwind.config.js
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  darkMode: ["class"],
+  content: [
+    './pages/**/*.{ts,tsx}',
+    './components/**/*.{ts,tsx}',
+    './app/**/*.{ts,tsx}',
+    './src/**/*.{ts,tsx}',
+  ],
+  theme: {
+    container: {
+      center: true,
+      padding: "2rem",
+      screens: {
+        "2xl": "1400px",
+      },
+    },
+    extend: {
+      colors: {
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
+      },
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
+      keyframes: {
+        "accordion-down": {
+          from: { height: 0 },
+          to: { height: "var(--radix-accordion-content-height)" },
+        },
+        "accordion-up": {
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: 0 },
+        },
+      },
+      animation: {
+        "accordion-down": "accordion-down 0.2s ease-out",
+        "accordion-up": "accordion-up 0.2s ease-out",
+      },
+    },
+  },
+  plugins: [require("tailwindcss-animate")],
+}
+```
+
+### Middleware Configuration
+
+```typescript
+// Path: middleware.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { match } from '@formatjs/intl-localematcher';
+import Negotiator from 'negotiator';
+
+// List of supported locales
+export const locales = ['en', 'fr'];
+export const defaultLocale = 'en';
+
+// Get the preferred locale from the request
+function getLocale(request: NextRequest) {
+  // Negotiator expects request headers as an object
+  const headers = Object.fromEntries(request.headers);
+  const negotiator = new Negotiator({ headers });
+  
+  // Use negotiator and intl-localematcher to get the best locale
+  const languages = negotiator.languages();
+  return match(languages, locales, defaultLocale);
+}
+
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  
+  // Check if the request is for a protected route
+  const isProtectedRoute = pathname.startsWith('/dashboard') || 
+                          pathname.startsWith('/settings');
+  
+  // Check if the request is for a static asset
+  const isStaticAsset = pathname.startsWith('/_next') || 
+                        pathname.startsWith('/images') || 
+                        pathname.match(/\.(ico|png|jpg|svg)$/);
+  
+  // Skip middleware for static assets
+  if (isStaticAsset) {
+    return NextResponse.next();
+  }
+  
+  // Check if pathname is missing a locale
+  const pathnameIsMissingLocale = locales.every(
+    locale => !pathname.startsWith(`/${locale}/`) && pathname !== `/${locale}`
+  );
+  
+  // If it's missing a locale, redirect to the default locale
+  if (pathnameIsMissingLocale) {
+    const locale = getLocale(request);
+    
+    // Create a new URL with the locale
+    const newUrl = new URL(`/${locale}${pathname}`, request.url);
+    
+    // Preserve the search params
+    newUrl.search = request.nextUrl.search;
+    
+    return NextResponse.redirect(newUrl);
+  }
+  
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: [
+    // Skip the following paths:
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+  ],
+};
+```
+
+## Project Templates
+
+To ensure consistency across projects, we have created starter templates that implement the structure outlined in this document. These templates include all the necessary configuration files, folder structure, and baseline components.
+
+### Using the Project Template
+
+To create a new Next.js project using our template:
+
+```bash
+# Clone the template repository
+git clone https://github.com/duraclim/nextjs-template.git my-new-project
+
+# Navigate to the project directory
+cd my-new-project
+
+# Remove Git history
+rm -rf .git
+
+# Initialize a new Git repository
+git init
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+```
+
+## Adding New Features
+
+When adding new features to an existing project, follow these guidelines to maintain the proper structure:
+
+<Steps>
+  <Step title="Create a new route">
+    Add a new directory under `app/[locale]/` for the feature
+    ```
+    app/[locale]/feature-name/
+    ├── page.tsx            # Main feature page
+    └── [id]/               # Dynamic routes (if needed)
+        └── page.tsx        # Detail page
+    ```
+  </Step>
+  
+  <Step title="Create components">
+    Add components under `components/feature-name/`
+    ```
+    components/feature-name/
+    ├── feature-list.tsx    # List component
+    └── feature-card.tsx    # Card component
+    ```
+  </Step>
+  
+  <Step title="Add API endpoints">
+    Add API endpoints under `app/[locale]/api/feature-name/`
+    ```
+    app/[locale]/api/feature-name/
+    ├── route.ts            # Main API endpoint
+    └── [id]/               # Dynamic endpoints (if needed)
+        └── route.ts        # Detail endpoint
+    ```
+  </Step>
+  
+  <Step title="Add types">
+    Add type definitions under `types/`
+    ```
+    types/
+    └── feature-name.ts     # Feature-specific types
+    ```
+  </Step>
+  
+  <Step title="Add tests">
+    Add tests under `tests/`
+    ```
+    tests/
+    ├── unit/
+    │   └── components/
+    │       └── feature-name/
+    │           └── feature-card.test.tsx
+    └── e2e/
+        └── feature-name.spec.ts
+    ```
+  </Step>
+</Steps>
+
+## Code Sharing Between Projects
+
+To promote code reuse, we maintain several shared packages:
+
+### UI Component Library
+
+Our shared UI components are published as an internal package:
+
+```bash
+npm install @duraclim/ui-components
+```
+
+Examples of shared components:
+
+- Button, Card, Input, etc.
+- Form components
+- Layout components
+- Navigation components
+
+### Utility Library
+
+Common utilities are shared across projects:
+
+```bash
+npm install @duraclim/utils
+```
+
+Examples of shared utilities:
+
+- Formatting helpers
+- Validation functions
+- API client base
+- Authentication helpers
+
+## Best Practices
+
+### File Naming Conventions
+
+- Use **kebab-case** for file and directory names
+- Use **PascalCase** for React component files
+- Use **camelCase** for utility and hook files
+
+### Import Ordering
+
+Organize imports in the following order:
+
+1. External libraries
+2. Internal modules (using absolute paths)
+3. Relative imports
+4. Type imports
+
+Example:
+
+```typescript
+// External libraries
+import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+
+// Internal modules (absolute paths)
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/use-auth';
+
+// Relative imports
+import { ProductCard } from './product-card';
+import './styles.css';
+
+// Type imports
+import type { Product } from '@/types/product';
+```
+
+### Code Splitting
+
+Implement code splitting to improve performance:
+
+- Use dynamic imports for large components
+- Use route-based code splitting
+- Lazy load components below the fold
+
+Example:
+
+```typescript
+import dynamic from 'next/dynamic';
+
+// Dynamically import a heavy component
+const HeavyChart = dynamic(() => import('@/components/charts/heavy-chart'), {
+  loading: () => <p>Loading chart...</p>,
+  ssr: false, // Disable server-side rendering for this component
+});
+
+export default function DashboardPage() {
+  return (
+    <div>
+      <h1>Dashboard</h1>
+      <HeavyChart />
+    </div>
+  );
+}
+```
+
+### Performance Considerations
+
+Follow these practices to ensure optimal performance:
+
+1. **Use Server Components** when appropriate
+2. **Optimize images** using Next.js Image component
+3. **Implement proper caching** strategies
+4. **Minimize client-side JavaScript**
+5. **Code-split large components**
+
+## Migration Guide
+
+If you're working on a project that doesn't follow this structure, here's a migration guide:
+
+<Steps>
+  <Step title="Move to App Router">
+    Migrate from Pages Router to App Router
+    ```bash
+    # Create app directory
+    mkdir -p app/[locale]
+    
+    # Move page components
+    # From: pages/index.tsx
+    # To: app/[locale]/page.tsx
+    ```
+  </Step>
+  
+  <Step title="Reorganize components">
+    Reorganize components by feature
+    ```bash
+    # Create feature directories
+    mkdir -p components/feature-name
+    
+    # Move components
+    # From: components/ComponentName.tsx
+    # To: components/feature-name/component-name.tsx
+    ```
+  </Step>
+  
+  <Step title="Update API routes">
+    Move API routes to the app directory
+    ```bash
+    # From: pages/api/resource.ts
+    # To: app/[locale]/api/resource/route.ts
+    ```
+  </Step>
+  
+  <Step title="Update imports">
+    Update all import paths to match the new structure
+  </Step>
+</Steps>
+
+## Conclusion
+
+Following this standardized project structure ensures consistency across all Duraclim Next.js projects, making it easier for developers to navigate and contribute to multiple codebases. The structure is designed to be scalable, maintainable, and aligned with Next.js best practices.
+
+For additional details on specific components or patterns, refer to the following resources:
+
+- [Next.js Project Structure](/projects/nextjs/overview)
+- [Next.js Deployment](/projects/nextjs/deployment)
+- [UI Component Library](/components/ui)

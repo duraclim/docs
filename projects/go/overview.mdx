@@ -1,0 +1,1225 @@
+---
+title: Go Projects Overview
+description: Overview of Duraclim's Go-based microservices and backend applications
+icon: golang
+---
+
+# Go Projects Overview
+
+Duraclim uses Go (Golang) for developing backend services, microservices, and utility applications. This document provides an overview of our Go projects, architecture decisions, and development standards.
+
+<Frame>
+  <img src="/images/go-architecture.png" alt="Go Architecture" className="rounded-lg" />
+</Frame>
+
+## Why Go?
+
+We chose Go for our backend services for several key reasons:
+
+1. **Performance** - Go's speed and efficiency make it ideal for high-throughput services
+2. **Simplicity** - Go's straightforward syntax and standard library reduce complexity
+3. **Concurrency** - Built-in goroutines and channels for easy concurrent programming
+4. **Strong Typing** - Static typing helps catch errors at compile time
+5. **Cross-Platform** - Easy compilation for different platforms
+6. **Deployment** - Single binary deployment with minimal dependencies
+7. **Standard Library** - Rich standard library reduces need for third-party dependencies
+
+## Key Projects
+
+<CardGroup cols={2}>
+  <Card title="Reschedule Client" icon="calendar" href="/projects/go/reschedule-client">
+    Service that handles client appointment rescheduling and communications
+    
+    **Repository:** [go-reschedule-client](https://github.com/duraclim/go-reschedule-client)
+  </Card>
+  
+  <Card title="API Gateway" icon="network-wired">
+    API gateway for routing and aggregating requests to internal services
+    
+    **Repository:** [go-api-gateway](https://github.com/duraclim/go-api-gateway)
+  </Card>
+  
+  <Card title="Notification Service" icon="bell">
+    Service for sending notifications across different channels (email, SMS, push)
+    
+    **Repository:** [go-notification-service](https://github.com/duraclim/go-notification-service)
+  </Card>
+  
+  <Card title="Data Processor" icon="database">
+    ETL and data processing service for analytics and reporting
+    
+    **Repository:** [go-data-processor](https://github.com/duraclim/go-data-processor)
+  </Card>
+</CardGroup>
+
+## Architecture Overview
+
+Our Go services follow a consistent architecture pattern:
+
+<AccordionGroup>
+  <Accordion title="Clean Architecture">
+    We implement Clean Architecture principles to ensure separation of concerns and testability:
+    
+    - **Domain Layer** - Core business logic and entities
+    - **Repository Layer** - Data access and persistence
+    - **Service Layer** - Business operations and workflows
+    - **Handler Layer** - API endpoints and request handling
+    
+    This separation allows us to:
+    - Test business logic independently of external dependencies
+    - Replace implementations (e.g., database, messaging) without affecting business logic
+    - Maintain a clear structure across different services
+  </Accordion>
+  
+  <Accordion title="Microservice Design">
+    Our services follow these microservice principles:
+    
+    - **Single Responsibility** - Each service handles a specific business capability
+    - **Independent Deployment** - Services can be deployed independently
+    - **Decentralized Data** - Each service manages its own data
+    - **Resilient Communication** - Services handle failures in communication gracefully
+    - **API-First Design** - Well-defined APIs for service communication
+  </Accordion>
+  
+  <Accordion title="API Design">
+    Our API design follows these principles:
+    
+    - **RESTful Design** - Resource-oriented APIs with standard HTTP methods
+    - **JSON Responses** - Consistent JSON response format
+    - **Error Handling** - Standardized error responses
+    - **Versioning** - API versioning for backward compatibility
+    - **Authentication** - Token-based authentication (JWT)
+    - **Documentation** - OpenAPI/Swagger documentation
+  </Accordion>
+</AccordionGroup>
+
+## Project Structure
+
+Our Go projects follow a consistent directory structure:
+
+```
+my-go-service/
+├── cmd/                         # Entry points for executables
+│   ├── api/                     # API server
+│   │   └── main.go              # Main API server entry point
+│   └── worker/                  # Background worker
+│       └── main.go              # Worker entry point
+├── internal/                    # Internal packages
+│   ├── domain/                  # Domain models and interfaces
+│   │   ├── entity/              # Domain entities
+│   │   │   └── user.go          # User entity
+│   │   └── repository/          # Repository interfaces
+│   │       └── user.go          # User repository interface
+│   ├── service/                 # Business logic services
+│   │   └── user_service.go      # User service implementation
+│   ├── repository/              # Repository implementations
+│   │   └── postgres/            # PostgreSQL implementation
+│   │       └── user_repo.go     # User repository for PostgreSQL
+│   └── handler/                 # API handlers
+│       └── http/                # HTTP handlers
+│           └── user_handler.go  # User API handler
+├── pkg/                         # Public packages for reuse
+│   ├── middleware/              # HTTP middleware
+│   │   └── auth.go              # Authentication middleware
+│   └── validator/               # Input validation
+│       └── validator.go         # Validation helpers
+├── config/                      # Configuration
+│   └── config.go                # Configuration loader
+├── migrations/                  # Database migrations
+│   ├── 00001_create_users.sql   # Initial migration
+│   └── 00002_add_fields.sql     # Subsequent migration
+├── scripts/                     # Utility scripts
+│   └── migrate.sh               # Database migration script
+├── api/                         # API definitions
+│   └── openapi.yaml             # OpenAPI specification
+├── Dockerfile                   # Docker build definition
+├── Makefile                     # Build and development tasks
+├── go.mod                       # Go modules definition
+└── go.sum                       # Go modules checksums
+```
+
+For more details, see the [Go Project Structure](/projects/go/structure) document.
+
+## Core Components
+
+### Domain Layer
+
+The domain layer contains the core business logic and entities:
+
+```go
+// Path: internal/domain/entity/user.go
+package entity
+
+import (
+    "time"
+)
+
+// User represents a user in the system
+type User struct {
+    ID        string     `json:"id"`
+    Email     string     `json:"email"`
+    Name      string     `json:"name"`
+    Role      string     `json:"role"`
+    CreatedAt time.Time  `json:"created_at"`
+    UpdatedAt time.Time  `json:"updated_at"`
+    DeletedAt *time.Time `json:"deleted_at,omitempty"`
+}
+
+// IsAdmin checks if the user has admin role
+func (u *User) IsAdmin() bool {
+    return u.Role == "admin"
+}
+```
+
+```go
+// Path: internal/domain/repository/user.go
+package repository
+
+import (
+    "context"
+    
+    "github.com/duraclim/my-service/internal/domain/entity"
+)
+
+// UserRepository defines the contract for user data access
+type UserRepository interface {
+    Create(ctx context.Context, user *entity.User) error
+    GetByID(ctx context.Context, id string) (*entity.User, error)
+    GetByEmail(ctx context.Context, email string) (*entity.User, error)
+    Update(ctx context.Context, user *entity.User) error
+    Delete(ctx context.Context, id string) error
+    List(ctx context.Context, limit, offset int) ([]*entity.User, error)
+}
+```
+
+### Service Layer
+
+The service layer implements business logic and orchestrates operations:
+
+```go
+// Path: internal/service/user_service.go
+package service
+
+import (
+    "context"
+    "errors"
+    "time"
+    
+    "github.com/duraclim/my-service/internal/domain/entity"
+    "github.com/duraclim/my-service/internal/domain/repository"
+)
+
+// UserService handles user-related business logic
+type UserService struct {
+    userRepo repository.UserRepository
+}
+
+// NewUserService creates a new user service
+func NewUserService(userRepo repository.UserRepository) *UserService {
+    return &UserService{
+        userRepo: userRepo,
+    }
+}
+
+// CreateUser creates a new user
+func (s *UserService) CreateUser(ctx context.Context, user *entity.User) error {
+    // Check if user with email already exists
+    existingUser, err := s.userRepo.GetByEmail(ctx, user.Email)
+    if err == nil && existingUser != nil {
+        return errors.New("user with this email already exists")
+    }
+    
+    // Set timestamps
+    now := time.Now()
+    user.CreatedAt = now
+    user.UpdatedAt = now
+    
+    // Create user in repository
+    return s.userRepo.Create(ctx, user)
+}
+
+// GetUserByID retrieves a user by ID
+func (s *UserService) GetUserByID(ctx context.Context, id string) (*entity.User, error) {
+    return s.userRepo.GetByID(ctx, id)
+}
+
+// Additional service methods...
+```
+
+### Repository Layer
+
+The repository layer handles data access and persistence:
+
+```go
+// Path: internal/repository/postgres/user_repo.go
+package postgres
+
+import (
+    "context"
+    "database/sql"
+    "errors"
+    
+    "github.com/duraclim/my-service/internal/domain/entity"
+)
+
+// UserRepository is a PostgreSQL implementation of the user repository
+type UserRepository struct {
+    db *sql.DB
+}
+
+// NewUserRepository creates a new PostgreSQL user repository
+func NewUserRepository(db *sql.DB) *UserRepository {
+    return &UserRepository{
+        db: db,
+    }
+}
+
+// Create adds a new user to the database
+func (r *UserRepository) Create(ctx context.Context, user *entity.User) error {
+    query := `
+        INSERT INTO users (id, email, name, role, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
+    `
+    
+    _, err := r.db.ExecContext(
+        ctx,
+        query,
+        user.ID,
+        user.Email,
+        user.Name,
+        user.Role,
+        user.CreatedAt,
+        user.UpdatedAt,
+    )
+    
+    return err
+}
+
+// GetByID retrieves a user by ID
+func (r *UserRepository) GetByID(ctx context.Context, id string) (*entity.User, error) {
+    query := `
+        SELECT id, email, name, role, created_at, updated_at, deleted_at
+        FROM users
+        WHERE id = $1 AND deleted_at IS NULL
+    `
+    
+    var user entity.User
+    err := r.db.QueryRowContext(ctx, query, id).Scan(
+        &user.ID,
+        &user.Email,
+        &user.Name,
+        &user.Role,
+        &user.CreatedAt,
+        &user.UpdatedAt,
+        &user.DeletedAt,
+    )
+    
+    if err != nil {
+        if errors.Is(err, sql.ErrNoRows) {
+            return nil, errors.New("user not found")
+        }
+        return nil, err
+    }
+    
+    return &user, nil
+}
+
+// Additional repository methods...
+```
+
+### Handler Layer
+
+The handler layer implements the API endpoints:
+
+```go
+// Path: internal/handler/http/user_handler.go
+package http
+
+import (
+    "encoding/json"
+    "net/http"
+    "strconv"
+    
+    "github.com/gorilla/mux"
+    
+    "github.com/duraclim/my-service/internal/domain/entity"
+    "github.com/duraclim/my-service/internal/service"
+)
+
+// UserHandler handles HTTP requests for user operations
+type UserHandler struct {
+    userService *service.UserService
+}
+
+// NewUserHandler creates a new user handler
+func NewUserHandler(userService *service.UserService) *UserHandler {
+    return &UserHandler{
+        userService: userService,
+    }
+}
+
+// Create handles user creation
+func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
+    var user entity.User
+    
+    // Decode request body
+    if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+        respondWithError(w, http.StatusBadRequest, "Invalid request payload")
+        return
+    }
+    
+    // Create user
+    if err := h.userService.CreateUser(r.Context(), &user); err != nil {
+        respondWithError(w, http.StatusInternalServerError, err.Error())
+        return
+    }
+    
+    // Respond with success
+    respondWithJSON(w, http.StatusCreated, user)
+}
+
+// GetByID handles user retrieval by ID
+func (h *UserHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+    vars := mux.Vars(r)
+    id := vars["id"]
+    
+    // Get user by ID
+    user, err := h.userService.GetUserByID(r.Context(), id)
+    if err != nil {
+        respondWithError(w, http.StatusNotFound, "User not found")
+        return
+    }
+    
+    // Respond with user data
+    respondWithJSON(w, http.StatusOK, user)
+}
+
+// List handles user listing with pagination
+func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
+    // Parse query parameters for pagination
+    limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+    page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+    
+    if limit <= 0 {
+        limit = 10 // Default limit
+    }
+    
+    if page <= 0 {
+        page = 1 // Default page
+    }
+    
+    offset := (page - 1) * limit
+    
+    // Get users with pagination
+    users, err := h.userService.ListUsers(r.Context(), limit, offset)
+    if err != nil {
+        respondWithError(w, http.StatusInternalServerError, err.Error())
+        return
+    }
+    
+    // Respond with users data
+    respondWithJSON(w, http.StatusOK, users)
+}
+
+// Additional handler methods...
+
+// Helper functions for responses
+func respondWithError(w http.ResponseWriter, code int, message string) {
+    respondWithJSON(w, code, map[string]string{"error": message})
+}
+
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+    response, _ := json.Marshal(payload)
+    
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(code)
+    w.Write(response)
+}
+```
+
+### API Entry Point
+
+The main entry point ties everything together:
+
+```go
+// Path: cmd/api/main.go
+package main
+
+import (
+    "database/sql"
+    "log"
+    "net/http"
+    "os"
+    
+    "github.com/gorilla/mux"
+    _ "github.com/lib/pq"
+    
+    "github.com/duraclim/my-service/config"
+    "github.com/duraclim/my-service/internal/handler/http"
+    "github.com/duraclim/my-service/internal/repository/postgres"
+    "github.com/duraclim/my-service/internal/service"
+    "github.com/duraclim/my-service/pkg/middleware"
+)
+
+func main() {
+    // Load configuration
+    cfg, err := config.Load()
+    if err != nil {
+        log.Fatalf("Failed to load configuration: %v", err)
+    }
+    
+    // Connect to database
+    db, err := sql.Open("postgres", cfg.DatabaseURL)
+    if err != nil {
+        log.Fatalf("Failed to connect to database: %v", err)
+    }
+    defer db.Close()
+    
+    // Initialize repositories
+    userRepo := postgres.NewUserRepository(db)
+    
+    // Initialize services
+    userService := service.NewUserService(userRepo)
+    
+    // Initialize handlers
+    userHandler := http.NewUserHandler(userService)
+    
+    // Create router
+    router := mux.NewRouter()
+    
+    // Add middleware
+    router.Use(middleware.Logger)
+    router.Use(middleware.Recoverer)
+    
+    // Set up API routes
+    apiRouter := router.PathPrefix("/api/v1").Subrouter()
+    
+    // User routes
+    apiRouter.HandleFunc("/users", userHandler.Create).Methods("POST")
+    apiRouter.HandleFunc("/users/{id}", userHandler.GetByID).Methods("GET")
+    apiRouter.HandleFunc("/users", userHandler.List).Methods("GET")
+    
+    // Protected routes
+    protectedRouter := apiRouter.NewRoute().Subrouter()
+    protectedRouter.Use(middleware.Auth(cfg.JWTSecret))
+    
+    // Start server
+    log.Printf("Server starting on %s", cfg.ServerAddress)
+    log.Fatal(http.ListenAndServe(cfg.ServerAddress, router))
+}
+```
+
+## Testing Strategy
+
+Our Go projects include comprehensive testing:
+
+### Unit Tests
+
+```go
+// Path: internal/service/user_service_test.go
+package service_test
+
+import (
+    "context"
+    "errors"
+    "testing"
+    "time"
+    
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/mock"
+    
+    "github.com/duraclim/my-service/internal/domain/entity"
+    "github.com/duraclim/my-service/internal/service"
+)
+
+// MockUserRepository is a mock implementation of the UserRepository interface
+type MockUserRepository struct {
+    mock.Mock
+}
+
+func (m *MockUserRepository) Create(ctx context.Context, user *entity.User) error {
+    args := m.Called(ctx, user)
+    return args.Error(0)
+}
+
+func (m *MockUserRepository) GetByID(ctx context.Context, id string) (*entity.User, error) {
+    args := m.Called(ctx, id)
+    if args.Get(0) == nil {
+        return nil, args.Error(1)
+    }
+    return args.Get(0).(*entity.User), args.Error(1)
+}
+
+func (m *MockUserRepository) GetByEmail(ctx context.Context, email string) (*entity.User, error) {
+    args := m.Called(ctx, email)
+    if args.Get(0) == nil {
+        return nil, args.Error(1)
+    }
+    return args.Get(0).(*entity.User), args.Error(1)
+}
+
+// Additional mock methods...
+
+func TestCreateUser(t *testing.T) {
+    // Create mock repository
+    mockRepo := new(MockUserRepository)
+    
+    // Create user service with mock repository
+    userService := service.NewUserService(mockRepo)
+    
+    // Create test user
+    user := &entity.User{
+        Email: "test@example.com",
+        Name:  "Test User",
+        Role:  "user",
+    }
+    
+    // Set up mock expectations
+    mockRepo.On("GetByEmail", mock.Anything, user.Email).Return(nil, errors.New("not found"))
+    mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*entity.User")).Return(nil)
+    
+    // Call service method
+    err := userService.CreateUser(context.Background(), user)
+    
+    // Assert result
+    assert.NoError(t, err)
+    assert.NotZero(t, user.CreatedAt)
+    assert.Equal(t, user.CreatedAt, user.UpdatedAt)
+    
+    // Verify expectations
+    mockRepo.AssertExpectations(t)
+}
+
+func TestCreateUser_AlreadyExists(t *testing.T) {
+    // Create mock repository
+    mockRepo := new(MockUserRepository)
+    
+    // Create user service with mock repository
+    userService := service.NewUserService(mockRepo)
+    
+    // Create test user
+    user := &entity.User{
+        Email: "test@example.com",
+        Name:  "Test User",
+        Role:  "user",
+    }
+    
+    existingUser := &entity.User{
+        ID:    "existing-id",
+        Email: "test@example.com",
+        Name:  "Existing User",
+    }
+    
+    // Set up mock expectations
+    mockRepo.On("GetByEmail", mock.Anything, user.Email).Return(existingUser, nil)
+    
+    // Call service method
+    err := userService.CreateUser(context.Background(), user)
+    
+    // Assert result
+    assert.Error(t, err)
+    assert.Contains(t, err.Error(), "already exists")
+    
+    // Verify expectations
+    mockRepo.AssertExpectations(t)
+}
+```
+
+### Integration Tests
+
+```go
+// Path: internal/repository/postgres/user_repo_test.go
+package postgres_test
+
+import (
+    "context"
+    "database/sql"
+    "testing"
+    "time"
+    
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/require"
+    
+    "github.com/duraclim/my-service/internal/domain/entity"
+    "github.com/duraclim/my-service/internal/repository/postgres"
+)
+
+func setupTestDB(t *testing.T) *sql.DB {
+    // Connect to test database
+    db, err := sql.Open("postgres", "postgres://postgres:postgres@localhost:5432/testdb?sslmode=disable")
+    require.NoError(t, err)
+    
+    // Create test table
+    _, err = db.Exec(`
+        CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            email TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            role TEXT NOT NULL,
+            created_at TIMESTAMP NOT NULL,
+            updated_at TIMESTAMP NOT NULL,
+            deleted_at TIMESTAMP
+        )
+    `)
+    require.NoError(t, err)
+    
+    // Clean up existing data
+    _, err = db.Exec("DELETE FROM users")
+    require.NoError(t, err)
+    
+    return db
+}
+
+func TestUserRepository_Create(t *testing.T) {
+    // Skip if short test mode
+    if testing.Short() {
+        t.Skip("Skipping integration test in short mode")
+    }
+    
+    // Set up test database
+    db := setupTestDB(t)
+    defer db.Close()
+    
+    // Create repository
+    repo := postgres.NewUserRepository(db)
+    
+    // Create test user
+    user := &entity.User{
+        ID:        "test-id",
+        Email:     "test@example.com",
+        Name:      "Test User",
+        Role:      "user",
+        CreatedAt: time.Now(),
+        UpdatedAt: time.Now(),
+    }
+    
+    // Test Create method
+    err := repo.Create(context.Background(), user)
+    assert.NoError(t, err)
+    
+    // Verify user was created
+    var count int
+    err = db.QueryRow("SELECT COUNT(*) FROM users WHERE id = $1", user.ID).Scan(&count)
+    assert.NoError(t, err)
+    assert.Equal(t, 1, count)
+}
+
+func TestUserRepository_GetByID(t *testing.T) {
+    // Skip if short test mode
+    if testing.Short() {
+        t.Skip("Skipping integration test in short mode")
+    }
+    
+    // Set up test database
+    db := setupTestDB(t)
+    defer db.Close()
+    
+    // Create repository
+    repo := postgres.NewUserRepository(db)
+    
+    // Insert test user
+    now := time.Now()
+    _, err := db.Exec(
+        "INSERT INTO users (id, email, name, role, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)",
+        "test-id",
+        "test@example.com",
+        "Test User",
+        "user",
+        now,
+        now,
+    )
+    require.NoError(t, err)
+    
+    // Test GetByID method
+    user, err := repo.GetByID(context.Background(), "test-id")
+    assert.NoError(t, err)
+    assert.NotNil(t, user)
+    assert.Equal(t, "test-id", user.ID)
+    assert.Equal(t, "test@example.com", user.Email)
+    assert.Equal(t, "Test User", user.Name)
+    assert.Equal(t, "user", user.Role)
+}
+
+// Additional test methods...
+```
+
+### HTTP Handler Tests
+
+```go
+// Path: internal/handler/http/user_handler_test.go
+package http_test
+
+import (
+    "bytes"
+    "encoding/json"
+    "errors"
+    "net/http"
+    "net/http/httptest"
+    "testing"
+    
+    "github.com/gorilla/mux"
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/mock"
+    
+    "github.com/duraclim/my-service/internal/domain/entity"
+    httpHandler "github.com/duraclim/my-service/internal/handler/http"
+)
+
+// MockUserService is a mock of the UserService
+type MockUserService struct {
+    mock.Mock
+}
+
+func (m *MockUserService) CreateUser(ctx context.Context, user *entity.User) error {
+    args := m.Called(ctx, user)
+    return args.Error(0)
+}
+
+func (m *MockUserService) GetUserByID(ctx context.Context, id string) (*entity.User, error) {
+    args := m.Called(ctx, id)
+    if args.Get(0) == nil {
+        return nil, args.Error(1)
+    }
+    return args.Get(0).(*entity.User), args.Error(1)
+}
+
+// Additional mock methods...
+
+func TestUserHandler_Create(t *testing.T) {
+    // Create mock service
+    mockService := new(MockUserService)
+    
+    // Create handler
+    handler := httpHandler.NewUserHandler(mockService)
+    
+    // Test user data
+    userData := map[string]string{
+        "email": "test@example.com",
+        "name":  "Test User",
+        "role":  "user",
+    }
+    
+    // Convert to JSON
+    body, err := json.Marshal(userData)
+    assert.NoError(t, err)
+    
+    // Create request
+    req, err := http.NewRequest("POST", "/users", bytes.NewBuffer(body))
+    assert.NoError(t, err)
+    req.Header.Set("Content-Type", "application/json")
+    
+    // Set up mock expectations
+    mockService.On("CreateUser", mock.Anything, mock.AnythingOfType("*entity.User")).Return(nil)
+    
+    // Create response recorder
+    rr := httptest.NewRecorder()
+    
+    // Call handler
+    handler.Create(rr, req)
+    
+    // Check response
+    assert.Equal(t, http.StatusCreated, rr.Code)
+    
+    // Verify expectations
+    mockService.AssertExpectations(t)
+}
+
+func TestUserHandler_GetByID(t *testing.T) {
+    // Create mock service
+    mockService := new(MockUserService)
+    
+    // Create handler
+    handler := httpHandler.NewUserHandler(mockService)
+    
+    // Create request
+    req, err := http.NewRequest("GET", "/users/123", nil)
+    assert.NoError(t, err)
+    
+    // Add path parameters
+    vars := map[string]string{
+        "id": "123",
+    }
+    req = mux.SetURLVars(req, vars)
+    
+    // Create test user
+    user := &entity.User{
+        ID:    "123",
+        Email: "test@example.com",
+        Name:  "Test User",
+        Role:  "user",
+    }
+    
+    // Set up mock expectations
+    mockService.On("GetUserByID", mock.Anything, "123").Return(user, nil)
+    
+    // Create response recorder
+    rr := httptest.NewRecorder()
+    
+    // Call handler
+    handler.GetByID(rr, req)
+    
+    // Check response
+    assert.Equal(t, http.StatusOK, rr.Code)
+    
+    // Parse response body
+    var responseUser entity.User
+    err = json.Unmarshal(rr.Body.Bytes(), &responseUser)
+    assert.NoError(t, err)
+    
+    // Check response data
+    assert.Equal(t, "123", responseUser.ID)
+    assert.Equal(t, "test@example.com", responseUser.Email)
+    
+    // Verify expectations
+    mockService.AssertExpectations(t)
+}
+
+func TestUserHandler_GetByID_NotFound(t *testing.T) {
+    // Create mock service
+    mockService := new(MockUserService)
+    
+    // Create handler
+    handler := httpHandler.NewUserHandler(mockService)
+    
+    // Create request
+    req, err := http.NewRequest("GET", "/users/123", nil)
+    assert.NoError(t, err)
+    
+    // Add path parameters
+    vars := map[string]string{
+        "id": "123",
+    }
+    req = mux.SetURLVars(req, vars)
+    
+    // Set up mock expectations
+    mockService.On("GetUserByID", mock.Anything, "123").Return(nil, errors.New("user not found"))
+    
+    // Create response recorder
+    rr := httptest.NewRecorder()
+    
+    // Call handler
+    handler.GetByID(rr, req)
+    
+    // Check response
+    assert.Equal(t, http.StatusNotFound, rr.Code)
+    
+    // Verify expectations
+    mockService.AssertExpectations(t)
+}
+```
+
+## Configuration Management
+
+We manage configuration using environment variables and configuration files:
+
+```go
+// Path: config/config.go
+package config
+
+import (
+    "fmt"
+    "os"
+    "strconv"
+    "time"
+    
+    "github.com/joho/godotenv"
+)
+
+// Config holds application configuration
+type Config struct {
+    Environment  string
+    ServerAddress string
+    DatabaseURL  string
+    JWTSecret    string
+    JWTExpiry    time.Duration
+    LogLevel     string
+}
+
+// Load loads configuration from environment variables
+func Load() (*Config, error) {
+    // Load .env file if it exists
+    godotenv.Load()
+    
+    config := &Config{
+        Environment:   getEnv("ENVIRONMENT", "development"),
+        ServerAddress: getEnv("SERVER_ADDRESS", ":8080"),
+        DatabaseURL:   getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/myservice?sslmode=disable"),
+        JWTSecret:     getEnv("JWT_SECRET", "your-secret-key"),
+        JWTExpiry:     time.Duration(getEnvAsInt("JWT_EXPIRY", 24)) * time.Hour,
+        LogLevel:      getEnv("LOG_LEVEL", "info"),
+    }
+    
+    // Validate required configuration
+    if config.JWTSecret == "your-secret-key" && config.Environment != "development" {
+        return nil, fmt.Errorf("JWT_SECRET must be set in production")
+    }
+    
+    return config, nil
+}
+
+// Helper function to get an environment variable or a default value
+func getEnv(key, defaultValue string) string {
+    value := os.Getenv(key)
+    if value == "" {
+        return defaultValue
+    }
+    return value
+}
+
+// Helper function to get an environment variable as an integer
+func getEnvAsInt(key string, defaultValue int) int {
+    valueStr := getEnv(key, "")
+    if value, err := strconv.Atoi(valueStr); err == nil {
+        return value
+    }
+    return defaultValue
+}
+```
+
+## Error Handling
+
+We follow a consistent approach to error handling:
+
+```go
+// Path: internal/domain/common/err/err.go
+package err
+
+import (
+    "fmt"
+    "net/http"
+)
+
+// AppError represents an application error with HTTP status code
+type AppError struct {
+    Code    int
+    Message string
+    Err     error
+}
+
+// Error implements the error interface
+func (e *AppError) Error() string {
+    if e.Err != nil {
+        return fmt.Sprintf("%s: %v", e.Message, e.Err)
+    }
+    return e.Message
+}
+
+// Unwrap returns the wrapped error
+func (e *AppError) Unwrap() error {
+    return e.Err
+}
+
+// New creates a new AppError
+func New(code int, message string, err error) *AppError {
+    return &AppError{
+        Code:    code,
+        Message: message,
+        Err:     err,
+    }
+}
+
+// NotFound creates a not found error
+func NotFound(message string, err error) *AppError {
+    return New(http.StatusNotFound, message, err)
+}
+
+// BadRequest creates a bad request error
+func BadRequest(message string, err error) *AppError {
+    return New(http.StatusBadRequest, message, err)
+}
+
+// Unauthorized creates an unauthorized error
+func Unauthorized(message string, err error) *AppError {
+    return New(http.StatusUnauthorized, message, err)
+}
+
+// Forbidden creates a forbidden error
+func Forbidden(message string, err error) *AppError {
+    return New(http.StatusForbidden, message, err)
+}
+
+// Internal creates an internal server error
+func Internal(message string, err error) *AppError {
+    return New(http.StatusInternalServerError, message, err)
+}
+```
+
+## Logging
+
+We use structured logging with fields for better searchability and context:
+
+```go
+// Path: pkg/logger/logger.go
+package logger
+
+import (
+    "os"
+    
+    "go.uber.org/zap"
+    "go.uber.org/zap/zapcore"
+)
+
+// Logger is a wrapper around zap.Logger
+type Logger struct {
+    *zap.Logger
+}
+
+// New creates a new logger
+func New(level string) (*Logger, error) {
+    // Parse log level
+    var zapLevel zapcore.Level
+    if err := zapLevel.UnmarshalText([]byte(level)); err != nil {
+        zapLevel = zapcore.InfoLevel
+    }
+    
+    // Create logger configuration
+    config := zap.Config{
+        Level:       zap.NewAtomicLevelAt(zapLevel),
+        Development: false,
+        Sampling: &zap.SamplingConfig{
+            Initial:    100,
+            Thereafter: 100,
+        },
+        Encoding: "json",
+        EncoderConfig: zapcore.EncoderConfig{
+            TimeKey:        "time",
+            LevelKey:       "level",
+            NameKey:        "logger",
+            CallerKey:      "caller",
+            MessageKey:     "msg",
+            StacktraceKey:  "stacktrace",
+            LineEnding:     zapcore.DefaultLineEnding,
+            EncodeLevel:    zapcore.LowercaseLevelEncoder,
+            EncodeTime:     zapcore.ISO8601TimeEncoder,
+            EncodeDuration: zapcore.StringDurationEncoder,
+            EncodeCaller:   zapcore.ShortCallerEncoder,
+        },
+        OutputPaths:      []string{"stdout"},
+        ErrorOutputPaths: []string{"stderr"},
+    }
+    
+    // Build logger
+    zapLogger, err := config.Build(zap.AddCallerSkip(1))
+    if err != nil {
+        return nil, err
+    }
+    
+    return &Logger{zapLogger}, nil
+}
+
+// With creates a new logger with additional fields
+func (l *Logger) With(fields ...zap.Field) *Logger {
+    return &Logger{l.Logger.With(fields...)}
+}
+
+// Named creates a new logger with a name
+func (l *Logger) Named(name string) *Logger {
+    return &Logger{l.Logger.Named(name)}
+}
+```
+
+## Middleware
+
+We use middleware for cross-cutting concerns:
+
+```go
+// Path: pkg/middleware/auth.go
+package middleware
+
+import (
+    "context"
+    "net/http"
+    "strings"
+    
+    "github.com/golang-jwt/jwt/v4"
+)
+
+// Auth is a middleware for JWT authentication
+func Auth(jwtSecret string) func(http.Handler) http.Handler {
+    return func(next http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            // Get Authorization header
+            authHeader := r.Header.Get("Authorization")
+            if authHeader == "" {
+                http.Error(w, "Authorization header is required", http.StatusUnauthorized)
+                return
+            }
+            
+            // Extract token from Authorization header
+            parts := strings.Split(authHeader, " ")
+            if len(parts) != 2 || parts[0] != "Bearer" {
+                http.Error(w, "Authorization header format must be Bearer {token}", http.StatusUnauthorized)
+                return
+            }
+            
+            // Parse token
+            tokenString := parts[1]
+            token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+                // Validate signing method
+                if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+                    return nil, jwt.ErrSignatureInvalid
+                }
+                return []byte(jwtSecret), nil
+            })
+            
+            if err != nil {
+                http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+                return
+            }
+            
+            // Extract claims
+            if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+                // Add user ID to context
+                userID, _ := claims["sub"].(string)
+                ctx := context.WithValue(r.Context(), "userID", userID)
+                
+                // Continue with the request
+                next.ServeHTTP(w, r.WithContext(ctx))
+                return
+            }
+            
+            http.Error(w, "Invalid token claims", http.StatusUnauthorized)
+        })
+    }
+}
+```
+
+## Project Structure
+
+For detailed information about the project structure of our Go applications, see the [Go Project Structure](/projects/go/structure) document.
+
+## Deployment
+
+For information on how we deploy our Go applications, see the [Go Deployment](/projects/go/deployment) document.
+
+## Best Practices
+
+### Code Organization
+
+1. **Follow Standard Go Project Layout** - Based on [golang-standards/project-layout](https://github.com/golang-standards/project-layout)
+2. **Clean Architecture** - Separate domain logic from infrastructure concerns
+3. **Dependency Injection** - Pass dependencies explicitly
+4. **Interface-Based Design** - Define interfaces for flexibility and testability
+
+### Error Handling
+
+1. **Error Types** - Use custom error types for different error cases
+2. **Error Wrapping** - Use `fmt.Errorf("context: %w", err)` to add context
+3. **Error Checking** - Always check errors immediately
+4. **Avoid Panic** - Use explicit error handling rather than panic
+
+### Concurrency
+
+1. **Goroutines** - Use goroutines for concurrent operations
+2. **Channels** - Use channels for communication between goroutines
+3. **Context** - Use context for cancellation and timeouts
+4. **Sync Package** - Use sync.WaitGroup, sync.Mutex, etc. for synchronization
+
+## Resources
+
+- [Go Documentation](https://golang.org/doc/)
+- [Effective Go](https://golang.org/doc/effective_go)
+- [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
+- [Standard Go Project Layout](https://github.com/golang-standards/project-layout)
+- [Go Modules](https://blog.golang.org/using-go-modules)
+- [Clean Architecture in Go](https://www.youtube.com/watch?v=oL6JBUk6tj0)

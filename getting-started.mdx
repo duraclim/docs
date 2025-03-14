@@ -1,0 +1,134 @@
+---
+title: Getting Started
+description: Essential information for new team members to get started at Duraclim IT
+icon: rocket
+---
+
+# Getting Started at Duraclim IT
+
+Welcome to the team! This guide will help you get up to speed and ready to contribute effectively to our projects.
+
+<img src="/images/welcome-onboarding.png" alt="Onboarding" className="rounded-lg shadow-md" />
+
+## Your First Day Checklist
+
+<Steps>
+  <Step title="Set up your accounts">
+    Make sure you have access to all necessary accounts:
+    - Company email
+    - Slack
+    - GitHub
+    - Supabase
+    - Zapier/Pabbly
+    - AWS (if applicable)
+  </Step>
+  <Step title="Install required software">
+    Set up your development environment:
+    - [VS Code](https://code.visualstudio.com/) or your preferred IDE
+    - [Git](https://git-scm.com/)
+    - [Node.js](https://nodejs.org/) (v18+)
+    - [Go](https://golang.org/) (v1.19+)
+    - [Docker](https://www.docker.com/products/docker-desktop/)
+  </Step>
+  <Step title="Clone key repositories">
+    ```bash
+    git clone https://github.com/duraclim/duraclim-calculator.git
+    git clone https://github.com/duraclim/go-reschedule-client.git
+    git clone https://github.com/duraclim/knowledge-base.git
+    ```
+  </Step>
+  <Step title="Join communication channels">
+    Make sure you're in these Slack channels:
+    - #it
+    - #it-discussions
+    - #it-testing
+    - #it-alerts
+    - #it-asana
+  </Step>
+</Steps>
+
+## Key Projects Overview
+
+Here's a quick overview of our main projects:
+
+<CardGroup cols={2}>
+  <Card title="Duraclim Calculator" icon="calculator" href="/projects/nextjs/calculator">
+    Next.js web application for pricing calculations for our various services
+  </Card>
+  <Card title="Go Reschedule Client" icon="calendar" href="/projects/go/reschedule-client">
+    Go service for handling client rescheduling and communications
+  </Card>
+  <Card title="Automation Workflows" icon="gears" href="/automations/overview">
+    Our various Zapier and Pabbly automations that connect our systems
+  </Card>
+  <Card title="Database & Infrastructure" icon="database" href="/projects/database/overview">
+    Information about our database structure and cloud infrastructure
+  </Card>
+</CardGroup>
+
+## Development Workflow
+
+Our development process follows these general steps:
+
+<Steps>
+  <Step title="Pick up a task">
+    Tasks are tracked in Asana. Assign yourself to a task or ask your team lead what to work on next.
+  </Step>
+  <Step title="Create a feature branch">
+    Create a branch from main following our naming convention: 
+    ```
+    feature/short-description-of-task
+    ```
+  </Step>
+  <Step title="Implement and test">
+    Develop the feature, writing tests along the way. Follow our coding style guidelines and patterns.
+  </Step>
+  <Step title="Submit for review">
+    Create a pull request and request reviews from relevant team members.
+  </Step>
+  <Step title="Address feedback">
+    Make necessary changes based on PR feedback.
+  </Step>
+  <Step title="Merge">
+    Once approved, your code will be merged into the main branch.
+  </Step>
+</Steps>
+
+## Common Tools & Resources
+
+<AccordionGroup>
+  <Accordion title="Development Tools">
+    - VS Code with recommended extensions
+    - Docker for containerized development
+    - GitHub for source control
+    - CI/CD with GitHub Actions
+  </Accordion>
+  <Accordion title="Communication & Documentation">
+    - Slack for real-time communication
+    - Asana for task management
+    - This knowledge base for documentation
+    - Loom/Komodo Decks for asynchronous video communication
+  </Accordion>
+  <Accordion title="Technical Resources">
+    - Supabase for database and authentication
+    - AWS for cloud infrastructure
+    - Vercel for frontend hosting
+    - Zapier/Pabbly for automation
+  </Accordion>
+</AccordionGroup>
+
+## Who to Ask for Help
+
+<CardGroup cols={3}>
+  <Card title="Frontend Issues" icon="react">
+    Contact our frontend lead in #it-discussions or tag @frontend-team
+  </Card>
+  <Card title="Backend/Go Issues" icon="golang">
+    Contact our backend lead in #it-discussions or tag @backend-team
+  </Card>
+  <Card title="DevOps/Infrastructure" icon="server">
+    Contact our DevOps engineer in #it-discussions or tag @devops-team
+  </Card>
+</CardGroup>
+
+Remember, there are no silly questions! We're all here to help each other succeed.

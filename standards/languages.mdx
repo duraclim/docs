@@ -1,0 +1,964 @@
+---
+title: Programming Languages
+description: Standards and guidelines for programming languages used at Duraclim IT
+icon: code
+---
+
+# Programming Languages
+
+This document outlines the programming languages used at Duraclim IT, along with our standards, best practices, and guidelines for each language.
+
+<Frame>
+  <img src="/images/programming-languages.png" alt="Programming Languages" className="rounded-lg" />
+</Frame>
+
+## Language Overview
+
+We use a focused set of programming languages to ensure consistency, maintainability, and a strong knowledge base within the team:
+
+<CardGroup cols={3}>
+  <Card title="TypeScript" icon="js">
+    Primary language for frontend and full-stack development
+  </Card>
+  
+  <Card title="Go (Golang)" icon="golang">
+    Primary language for backend microservices
+  </Card>
+  
+  <Card title="Python" icon="python">
+    Used for data processing and automation scripts
+  </Card>
+  
+  <Card title="SQL" icon="database">
+    Used for database queries and data manipulation
+  </Card>
+  
+  <Card title="Bash" icon="terminal">
+    Used for DevOps and automation scripts
+  </Card>
+</CardGroup>
+
+## TypeScript
+
+TypeScript is our primary language for frontend development and some backend services.
+
+### Version and Environment
+
+- **Version:** TypeScript 5.x
+- **Node.js Version:** 18.x LTS
+- **Package Manager:** npm or yarn (team preference)
+- **Build Tools:** Next.js built-in, Vite, or esbuild
+
+### TypeScript Standards
+
+<AccordionGroup>
+  <Accordion title="TypeScript Configuration">
+    We use a standardized `tsconfig.json` for all TypeScript projects:
+    
+    ```json
+    {
+      "compilerOptions": {
+        "target": "ES2020",
+        "lib": ["DOM", "DOM.Iterable", "ESNext"],
+        "module": "ESNext",
+        "skipLibCheck": true,
+        "moduleResolution": "bundler",
+        "allowImportingTsExtensions": true,
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "noEmit": true,
+        "jsx": "preserve",
+        "strict": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noFallthroughCasesInSwitch": true,
+        "allowJs": true,
+        "forceConsistentCasingInFileNames": true,
+        "incremental": true,
+        "esModuleInterop": true,
+        "paths": {
+          "@/*": ["./*"]
+        }
+      },
+      "include": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"],
+      "exclude": ["node_modules"]
+    }
+    ```
+    
+    For specific project requirements, make adjustments as needed but keep the strict type checking enabled.
+  </Accordion>
+  
+  <Accordion title="TypeScript Coding Style">
+    - Use explicit type annotations for function parameters and return types
+    - Prefer interfaces over type aliases for object types
+    - Use union types for values that can be one of several types
+    - Avoid using `any` whenever possible
+    - Use generics for reusable components and functions
+    - Use `unknown` instead of `any` when the type is truly unknown
+    - Utilize TypeScript's utility types (Pick, Omit, Partial, etc.)
+    
+    ```typescript
+    // Good
+    interface User {
+      id: string;
+      name: string;
+      email: string;
+      role: 'admin' | 'user' | 'guest';
+    }
+    
+    function getUser(id: string): Promise<User> {
+      // Implementation
+      return fetch(`/api/users/${id}`).then(res => res.json());
+    }
+    
+    // Bad
+    function getUser(id): any {
+      // Implementation
+      return fetch(`/api/users/${id}`).then(res => res.json());
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Error Handling">
+    - Use typed error handling
+    - Create custom error classes for specific error types
+    - Utilize `try-catch` blocks appropriately
+    
+    ```typescript
+    // Custom error class
+    class ApiError extends Error {
+      constructor(
+        message: string,
+        public statusCode: number,
+        public data?: unknown
+      ) {
+        super(message);
+        this.name = 'ApiError';
+      }
+    }
+    
+    // Error handling
+    async function fetchData<T>(url: string): Promise<T> {
+      try {
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new ApiError(
+            `API error with status: ${response.status}`,
+            response.status,
+            await response.json().catch(() => null)
+          );
+        }
+        
+        return await response.json();
+      } catch (error) {
+        if (error instanceof ApiError) {
+          // Handle API errors
+          console.error(`API Error (${error.statusCode}): ${error.message}`, error.data);
+        } else {
+          // Handle other errors
+          console.error('Fetch error:', error);
+        }
+        throw error;
+      }
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Asynchronous Code">
+    - Use `async/await` for asynchronous code
+    - Avoid mixing Promises and callbacks
+    - Handle errors in async functions with try-catch
+    
+    ```typescript
+    // Good
+    async function fetchUserData(userId: string): Promise<UserData> {
+      try {
+        const user = await getUser(userId);
+        const orders = await getOrders(userId);
+        return { user, orders };
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        throw error;
+      }
+    }
+    
+    // Bad - mixing async styles
+    function fetchUserData(userId) {
+      return getUser(userId)
+        .then(user => {
+          getOrders(userId, (orders) => {
+            return { user, orders };
+          });
+        })
+        .catch(error => {
+          console.error('Error:', error);
+        });
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### TypeScript Linting and Formatting
+
+We use ESLint and Prettier for code quality and formatting:
+
+```javascript
+// .eslintrc.js
+module.exports = {
+  extends: [
+    'eslint:recommended',
+    'plugin:@typescript-eslint/recommended',
+    'plugin:react/recommended', // If using React
+    'plugin:react-hooks/recommended', // If using React
+    'prettier'
+  ],
+  parser: '@typescript-eslint/parser',
+  plugins: ['@typescript-eslint'],
+  rules: {
+    // Custom rules...
+  },
+};
+
+// .prettierrc
+{
+  "semi": true,
+  "trailingComma": "es5",
+  "singleQuote": true,
+  "printWidth": 80,
+  "tabWidth": 2
+}
+```
+
+## Go (Golang)
+
+Go is our primary language for backend microservices and system-level programming.
+
+### Version and Environment
+
+- **Version:** Go 1.19+
+- **Framework:** Standard library or Echo for HTTP services
+- **Build Tools:** Go modules for dependency management
+
+### Go Standards
+
+<AccordionGroup>
+  <Accordion title="Project Structure">
+    We follow a standardized project structure for Go services:
+    
+    ```
+    my-service/
+    ├── cmd/                      # Entry points for executables
+    │   └── main.go               # Main application
+    ├── internal/                 # Private application code
+    │   ├── domain/               # Domain models and interfaces
+    │   ├── repository/           # Data access layer
+    │   ├── service/              # Business logic
+    │   └── handler/              # API handlers
+    ├── pkg/                      # Public libraries for reuse
+    ├── api/                      # API definitions and docs
+    ├── config/                   # Configuration
+    ├── migrations/               # Database migrations
+    └── scripts/                  # Utility scripts
+    ```
+    
+    See our [Go Project Structure](/projects/go/structure) document for more details.
+  </Accordion>
+  
+  <Accordion title="Coding Style">
+    - Follow the [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
+    - Use gofmt for formatting code
+    - Write clear, idiomatic Go code
+    - Use meaningful variable names
+    - Keep functions focused and small
+    - Write thorough documentation comments
+    
+    ```go
+    // UserService provides user management functionality
+    type UserService struct {
+        repo UserRepository
+        logger *log.Logger
+    }
+    
+    // NewUserService creates a new user service
+    func NewUserService(repo UserRepository, logger *log.Logger) *UserService {
+        return &UserService{
+            repo: repo,
+            logger: logger,
+        }
+    }
+    
+    // GetUser retrieves a user by ID
+    // Returns NotFoundError if the user doesn't exist
+    func (s *UserService) GetUser(ctx context.Context, id string) (*User, error) {
+        s.logger.Printf("Getting user %s", id)
+        return s.repo.GetByID(ctx, id)
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Error Handling">
+    - Check errors immediately after they occur
+    - Return errors rather than using panic
+    - Use error wrapping to add context
+    - Create custom error types for specific errors
+    
+    ```go
+    // Custom error types
+    type NotFoundError struct {
+        Entity string
+        ID string
+    }
+    
+    func (e NotFoundError) Error() string {
+        return fmt.Sprintf("%s with ID %s not found", e.Entity, e.ID)
+    }
+    
+    // Using errors properly
+    func (r *UserRepository) GetByID(ctx context.Context, id string) (*User, error) {
+        var user User
+        err := r.db.GetContext(ctx, &user, "SELECT * FROM users WHERE id = $1", id)
+        if err != nil {
+            if err == sql.ErrNoRows {
+                return nil, NotFoundError{Entity: "User", ID: id}
+            }
+            return nil, fmt.Errorf("error getting user from database: %w", err)
+        }
+        return &user, nil
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Concurrency">
+    - Use goroutines for concurrent operations
+    - Use channels for communication between goroutines
+    - Use context for cancellation and deadlines
+    - Use sync package for synchronization when needed
+    
+    ```go
+    func ProcessItems(ctx context.Context, items []Item) ([]Result, error) {
+        results := make([]Result, len(items))
+        errs := make(chan error, 1)
+        var wg sync.WaitGroup
+        
+        // Process each item concurrently
+        for i, item := range items {
+            wg.Add(1)
+            go func(i int, item Item) {
+                defer wg.Done()
+                
+                // Check for context cancellation
+                select {
+                case <-ctx.Done():
+                    errs <- ctx.Err()
+                    return
+                default:
+                    // Continue processing
+                }
+                
+                // Process the item
+                result, err := processItem(ctx, item)
+                if err != nil {
+                    errs <- err
+                    return
+                }
+                
+                results[i] = result
+            }(i, item)
+        }
+        
+        // Wait for all goroutines to finish
+        wg.Wait()
+        
+        // Check for errors
+        select {
+        case err := <-errs:
+            return nil, err
+        default:
+            return results, nil
+        }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Go Linting and Formatting
+
+We use the following tools for Go code quality:
+
+```bash
+# Install linting tools
+go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+# Run linter
+golangci-lint run ./...
+
+# Format code
+go fmt ./...
+```
+
+## Python
+
+Python is used for data processing, automation scripts, and specialized tasks.
+
+### Version and Environment
+
+- **Version:** Python 3.10+
+- **Virtual Environments:** pipenv or venv
+- **Package Management:** pip with requirements.txt
+
+### Python Standards
+
+<AccordionGroup>
+  <Accordion title="Project Structure">
+    We follow a standardized project structure for Python applications:
+    
+    ```
+    my-python-project/
+    ├── src/                      # Source code
+    │   └── my_package/           # Main package
+    ├── tests/                    # Test files
+    ├── scripts/                  # Utility scripts
+    ├── requirements.txt          # Dependencies
+    ├── setup.py                  # Package configuration
+    └── README.md                 # Documentation
+    ```
+  </Accordion>
+  
+  <Accordion title="Coding Style">
+    - Follow [PEP 8](https://pep8.org/) style guide
+    - Use [black](https://github.com/psf/black) for code formatting
+    - Use type hints (PEP 484)
+    - Write docstrings for functions and classes (PEP 257)
+    - Keep functions focused and small
+    
+    ```python
+    def process_data(data: list[dict]) -> dict:
+        """
+        Process a list of data items and return summary statistics.
+        
+        Args:
+            data: A list of dictionaries containing data to process
+            
+        Returns:
+            A dictionary with summary statistics
+            
+        Raises:
+            ValueError: If the data list is empty
+        """
+        if not data:
+            raise ValueError("Data list cannot be empty")
+            
+        total = sum(item["value"] for item in data)
+        average = total / len(data)
+        
+        return {
+            "total": total,
+            "average": average,
+            "count": len(data)
+        }
+    ```
+  </Accordion>
+  
+  <Accordion title="Error Handling">
+    - Use try-except blocks to catch and handle exceptions
+    - Create custom exception classes for specific errors
+    - Use context managers (with statements) for resource management
+    
+    ```python
+    class DataProcessingError(Exception):
+        """Raised when data processing fails."""
+        pass
+    
+    def process_file(file_path: str) -> list:
+        try:
+            with open(file_path, 'r') as file:
+                data = file.readlines()
+                
+            processed_data = []
+            for line in data:
+                try:
+                    item = process_line(line)
+                    processed_data.append(item)
+                except ValueError as e:
+                    logging.warning(f"Skipping line due to error: {e}")
+                    continue
+                    
+            return processed_data
+        except FileNotFoundError:
+            raise DataProcessingError(f"File not found: {file_path}")
+        except IOError as e:
+            raise DataProcessingError(f"IO error processing file: {e}")
+    ```
+  </Accordion>
+  
+  <Accordion title="Data Processing">
+    - Use pandas for data manipulation
+    - Use numpy for numerical operations
+    - Use appropriate data structures (dictionaries, lists, sets)
+    - Handle large datasets efficiently
+    
+    ```python
+    import pandas as pd
+    import numpy as np
+    
+    def analyze_sales_data(file_path: str) -> dict:
+        """Analyze sales data from CSV file."""
+        # Read data
+        df = pd.read_csv(file_path)
+        
+        # Clean data
+        df = df.dropna(subset=['sales_amount'])
+        df['date'] = pd.to_datetime(df['date'])
+        df['month'] = df['date'].dt.month
+        df['year'] = df['date'].dt.year
+        
+        # Analyze data
+        monthly_sales = df.groupby(['year', 'month'])['sales_amount'].sum()
+        top_products = df.groupby('product_id')['sales_amount'].sum().nlargest(5)
+        total_sales = df['sales_amount'].sum()
+        
+        return {
+            'total_sales': total_sales,
+            'monthly_sales': monthly_sales.to_dict(),
+            'top_products': top_products.to_dict(),
+        }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Python Linting and Testing
+
+We use the following tools for Python code quality:
+
+```bash
+# Install linting tools
+pip install flake8 mypy black isort
+
+# Run linters
+flake8 src tests
+mypy src tests
+black src tests --check
+isort src tests --check
+
+# Format code
+black src tests
+isort src tests
+
+# Run tests
+pytest
+```
+
+## SQL
+
+SQL is used for database queries and data manipulation, primarily with PostgreSQL.
+
+### SQL Standards
+
+<AccordionGroup>
+  <Accordion title="Naming Conventions">
+    - Use snake_case for table and column names
+    - Use plural for table names (e.g., `users`, `orders`)
+    - Use singular for column names (e.g., `user_id`, `order_date`)
+    - Use descriptive names for tables and columns
+    
+    ```sql
+    -- Good
+    CREATE TABLE users (
+      id UUID PRIMARY KEY,
+      first_name TEXT NOT NULL,
+      last_name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    
+    -- Bad
+    CREATE TABLE user (
+      userId UUID PRIMARY KEY,
+      firstName TEXT NOT NULL,
+      lastName TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      createdAt TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    ```
+  </Accordion>
+  
+  <Accordion title="Query Formatting">
+    - Use uppercase for SQL keywords
+    - Place each clause on a new line
+    - Indent subqueries and joins
+    - Use meaningful aliases for table names
+    
+    ```sql
+    -- Good
+    SELECT 
+      u.id,
+      u.email,
+      u.first_name,
+      u.last_name,
+      COUNT(o.id) AS order_count
+    FROM 
+      users u
+    LEFT JOIN 
+      orders o ON u.id = o.user_id
+    WHERE 
+      u.created_at > '2023-01-01'
+    GROUP BY 
+      u.id
+    ORDER BY 
+      order_count DESC
+    LIMIT 10;
+    
+    -- Bad
+    SELECT u.id, u.email, u.first_name, u.last_name, COUNT(o.id) AS order_count FROM users u LEFT JOIN orders o ON u.id = o.user_id WHERE u.created_at > '2023-01-01' GROUP BY u.id ORDER BY order_count DESC LIMIT 10;
+    ```
+  </Accordion>
+  
+  <Accordion title="Schema Design">
+    - Use appropriate data types for columns
+    - Add constraints to enforce data integrity
+    - Create indexes for frequently queried columns
+    - Use foreign key constraints for relationships
+    - Include created_at and updated_at timestamps
+    
+    ```sql
+    CREATE TABLE orders (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES users(id),
+      status TEXT NOT NULL CHECK (status IN ('pending', 'processing', 'completed', 'cancelled')),
+      total_amount DECIMAL(10, 2) NOT NULL CHECK (total_amount >= 0),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    
+    CREATE INDEX idx_orders_user_id ON orders(user_id);
+    CREATE INDEX idx_orders_status ON orders(status);
+    CREATE INDEX idx_orders_created_at ON orders(created_at);
+    ```
+  </Accordion>
+  
+  <Accordion title="Query Performance">
+    - Use EXPLAIN ANALYZE to understand query performance
+    - Write efficient queries that use appropriate indexes
+    - Avoid SELECT * and retrieve only needed columns
+    - Use appropriate joins (INNER, LEFT, etc.)
+    - Limit result sets when possible
+    
+    ```sql
+    -- Good: Using appropriate indexes and limiting results
+    SELECT 
+      id, 
+      email, 
+      first_name, 
+      last_name
+    FROM 
+      users
+    WHERE 
+      created_at > '2023-01-01'
+    ORDER BY 
+      created_at DESC
+    LIMIT 100;
+    
+    -- Bad: Using SELECT * and not limiting results
+    SELECT 
+      *
+    FROM 
+      users
+    WHERE 
+      created_at > '2023-01-01'
+    ORDER BY 
+      created_at DESC;
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Bash
+
+Bash is used for DevOps, automation scripts, and CI/CD pipelines.
+
+### Bash Standards
+
+<AccordionGroup>
+  <Accordion title="Script Structure">
+    - Start with a shebang line (`#!/bin/bash`)
+    - Include a brief description of the script
+    - Define constants at the top of the script
+    - Use functions for repeated code
+    - Include error handling
+    
+    ```bash
+    #!/bin/bash
+    #
+    # Deploy script for the calculator application
+    # Usage: ./deploy.sh [environment]
+    #
+    
+    set -euo pipefail
+    
+    # Constants
+    ENVIRONMENTS=("dev" "staging" "prod")
+    DEFAULT_ENV="dev"
+    
+    # Functions
+    function usage() {
+      echo "Usage: $0 [environment]"
+      echo "  environment: one of ${ENVIRONMENTS[*]} (default: $DEFAULT_ENV)"
+      exit 1
+    }
+    
+    function deploy_to_environment() {
+      local env=$1
+      echo "Deploying to $env environment..."
+      
+      # Deployment logic here...
+      
+      echo "Deployment to $env completed successfully."
+    }
+    
+    # Parse arguments
+    ENVIRONMENT=${1:-$DEFAULT_ENV}
+    
+    # Validate environment
+    if [[ ! " ${ENVIRONMENTS[*]} " =~ " ${ENVIRONMENT} " ]]; then
+      echo "Error: Invalid environment '$ENVIRONMENT'"
+      usage
+    fi
+    
+    # Main script logic
+    deploy_to_environment "$ENVIRONMENT"
+    ```
+  </Accordion>
+  
+  <Accordion title="Error Handling">
+    - Use `set -e` to exit on error
+    - Use `set -u` to error on undefined variables
+    - Use `set -o pipefail` to ensure pipeline failures are caught
+    - Include error messages and proper exit codes
+    
+    ```bash
+    #!/bin/bash
+    
+    set -euo pipefail
+    
+    function handle_error() {
+      local line_number=$1
+      local error_code=$2
+      echo "Error on line $line_number with exit code $error_code"
+      exit $error_code
+    }
+    
+    trap 'handle_error ${LINENO} $?' ERR
+    
+    # Script logic here...
+    ```
+  </Accordion>
+  
+  <Accordion title="Variable Naming">
+    - Use lowercase for regular variables
+    - Use uppercase for constants
+    - Use descriptive names
+    - Quote variables to prevent word splitting
+    
+    ```bash
+    # Constants
+    readonly DATABASE_URL="postgres://user:password@localhost:5432/mydb"
+    readonly MAX_RETRIES=5
+    
+    # Variables
+    user_name="John"
+    file_path="/path/to/file.txt"
+    
+    # Using variables safely
+    if [[ -f "$file_path" ]]; then
+      echo "Processing file for $user_name"
+    fi
+    ```
+  </Accordion>
+  
+  <Accordion title="Command Execution">
+    - Use `$(command)` instead of backticks
+    - Check command exit codes
+    - Capture and handle command output
+    
+    ```bash
+    # Good: Using $() for command substitution
+    current_date=$(date "+%Y-%m-%d")
+    echo "Today is $current_date"
+    
+    # Check command exit code
+    if ! output=$(some_command 2>&1); then
+      echo "Command failed with output: $output"
+      exit 1
+    fi
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Language Selection Guidelines
+
+When selecting a language for a new project or component, consider the following factors:
+
+<AccordionGroup>
+  <Accordion title="Use TypeScript for">
+    - Web frontends (with React/Next.js)
+    - REST APIs that are closely tied to the frontend
+    - Full-stack applications using Next.js
+    - Serverless functions that primarily handle HTTP requests
+  </Accordion>
+  
+  <Accordion title="Use Go for">
+    - Performance-critical backend services
+    - Microservices with complex business logic
+    - Long-running background processes
+    - APIs that require high throughput
+    - Services that interact with low-level systems
+  </Accordion>
+  
+  <Accordion title="Use Python for">
+    - Data analysis and processing
+    - Machine learning and AI components
+    - Automation scripts
+    - Rapid prototyping
+    - Integration with data science libraries
+  </Accordion>
+  
+  <Accordion title="Use SQL for">
+    - Database schema definitions
+    - Complex queries
+    - Data migrations
+    - Stored procedures and functions
+  </Accordion>
+  
+  <Accordion title="Use Bash for">
+    - Deployment scripts
+    - CI/CD pipeline scripts
+    - System automation
+    - Simple task automation
+  </Accordion>
+</AccordionGroup>
+
+## Cross-Language Integration
+
+Our projects often involve multiple languages working together. Here are our guidelines for cross-language integration:
+
+### API-Based Integration
+
+When integrating services written in different languages, use HTTP/RESTful APIs:
+
+```typescript
+// TypeScript frontend calling Go backend
+async function fetchUserData(userId: string): Promise<User> {
+  const response = await fetch(`/api/users/${userId}`);
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch user: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+```
+
+```go
+// Go backend serving TypeScript frontend
+func HandleGetUser(w http.ResponseWriter, r *http.Request) {
+    vars := mux.Vars(r)
+    userId := vars["id"]
+    
+    user, err := userService.GetUser(r.Context(), userId)
+    if err != nil {
+        if errors.Is(err, ErrUserNotFound) {
+            w.WriteHeader(http.StatusNotFound)
+            json.NewEncoder(w).Encode(map[string]string{"error": "User not found"})
+            return
+        }
+        
+        w.WriteHeader(http.StatusInternalServerError)
+        json.NewEncoder(w).Encode(map[string]string{"error": "Internal server error"})
+        return
+    }
+    
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(user)
+}
+```
+
+### Data Serialization
+
+Use standard data formats for cross-language data exchange:
+
+- JSON for most API responses and requests
+- Protocol Buffers for high-performance requirements
+- CSV for simple data transfers
+
+### Database-Based Integration
+
+When appropriate, use the database as an integration point:
+
+```go
+// Go service writing to database
+func (s *OrderService) CreateOrder(ctx context.Context, order *Order) error {
+    // Business logic...
+    
+    // Insert into database
+    return s.repo.Insert(ctx, order)
+}
+```
+
+```python
+# Python script reading from database
+import psycopg2
+
+def process_new_orders():
+    conn = psycopg2.connect(DATABASE_URL)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, customer_id, total_amount, status
+                FROM orders
+                WHERE status = 'new'
+                ORDER BY created_at
+                LIMIT 100
+            """)
+            orders = cur.fetchall()
+            
+            # Process orders...
+            
+            # Update processed orders
+            for order_id in processed_order_ids:
+                cur.execute("""
+                    UPDATE orders
+                    SET status = 'processing', updated_at = NOW()
+                    WHERE id = %s
+                """, (order_id,))
+            
+            conn.commit()
+    finally:
+        conn.close()
+```
+
+## Resources
+
+### TypeScript Resources
+- [TypeScript Handbook](https://www.typescriptlang.org/docs/handbook/intro.html)
+- [TypeScript Deep Dive](https://basarat.gitbook.io/typescript/)
+- [Clean Code in TypeScript](https://github.com/labs42io/clean-code-typescript)
+
+### Go Resources
+- [Effective Go](https://golang.org/doc/effective_go)
+- [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
+- [Go by Example](https://gobyexample.com/)
+
+### Python Resources
+- [Python Style Guide (PEP 8)](https://pep8.org/)
+- [Python Type Hints (PEP 484)](https://peps.python.org/pep-0484/)
+- [Real Python Tutorials](https://realpython.com/)
+
+### SQL Resources
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [SQL Style Guide](https://www.sqlstyle.guide/)
+- [Use the Index, Luke](https://use-the-index-luke.com/) (SQL Performance)
+
+### Bash Resources
+- [Bash Guide](https://mywiki.wooledge.org/BashGuide)
+- [Google Shell Style Guide](https://google.github.io/styleguide/shellguide.html)
+- [ShellCheck](https://www.shellcheck.net/) (Bash script analyzer)

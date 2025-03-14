@@ -1,0 +1,651 @@
+---
+title: Pabbly
+description: Guide to using Pabbly Connect for creating and managing cost-effective automations
+icon: plug
+---
+
+# Pabbly Connect
+
+[Pabbly Connect](https://www.pabbly.com/connect/) is our secondary automation platform that provides a cost-effective alternative to Zapier for high-volume automations. This guide covers how to use Pabbly effectively at Duraclim, following our established standards and practices.
+
+<Frame>
+  <img src="/images/pabbly-overview.png" alt="Pabbly Connect Overview" className="rounded-lg" />
+</Frame>
+
+## What is Pabbly Connect?
+
+Pabbly Connect is an automation platform similar to Zapier that allows you to connect different applications and create workflows without writing code. In Pabbly terminology, these automations are called "Workflows" (equivalent to Zapier's "Zaps").
+
+## When to Use Pabbly
+
+At Duraclim, we use Pabbly Connect for:
+
+- High-volume automations where task usage would be expensive in Zapier
+- Stable, straightforward workflows that require less frequent debugging
+- Integrations where all necessary apps are available in Pabbly
+- Non-critical automations where occasional delays are acceptable
+- Cost-efficient processing of repetitive tasks
+
+<Note>
+  Pabbly's pricing model is based on the number of workflows and connections rather than task execution count, making it more economical for high-volume automations.
+</Note>
+
+## Account Access
+
+To get access to our Pabbly Connect account:
+
+1. Request access from the IT department via the [Access Request Form](https://forms.duraclim.com/access-request)
+2. You'll receive an invitation email from Pabbly
+3. Accept the invitation and set up your account
+4. You'll be added to our Pabbly workspace with appropriate permissions
+
+<Warning>
+  Always use your Duraclim email address when accepting the invitation.
+</Warning>
+
+## Pabbly Interface Overview
+
+<AccordionGroup>
+  <Accordion title="Dashboard">
+    The Pabbly dashboard shows:
+    
+    - All your workflows and their status
+    - Quick stats on task execution
+    - Recently modified workflows
+    - Account usage summary
+    
+    <Frame>
+      <img src="/images/pabbly-dashboard.png" alt="Pabbly Dashboard" className="rounded-lg" />
+    </Frame>
+  </Accordion>
+  
+  <Accordion title="Workflow Editor">
+    The Workflow Editor is where you create and edit workflows:
+    
+    - Select trigger apps and events
+    - Add action steps
+    - Configure filters and conditions
+    - Test each step
+    
+    <Frame>
+      <img src="/images/pabbly-editor.png" alt="Pabbly Editor" className="rounded-lg" />
+    </Frame>
+  </Accordion>
+  
+  <Accordion title="Task History">
+    The Task History section shows:
+    
+    - Recent workflow executions
+    - Success or error status
+    - Input and output data
+    - Error messages for troubleshooting
+    
+    <Frame>
+      <img src="/images/pabbly-history.png" alt="Pabbly History" className="rounded-lg" />
+    </Frame>
+  </Accordion>
+</AccordionGroup>
+
+## Creating a New Workflow
+
+<Steps>
+  <Step title="Start a new workflow">
+    From the dashboard, click "Create Workflow" button.
+  </Step>
+  
+  <Step title="Choose a trigger app">
+    Select the app that will trigger your workflow (e.g., Google Forms, Pipedrive, Webhooks).
+  </Step>
+  
+  <Step title="Select trigger event">
+    Choose what event in the trigger app will start your workflow (e.g., "New Form Response").
+  </Step>
+  
+  <Step title="Connect your account">
+    Connect your account for the trigger app if not already connected.
+  </Step>
+  
+  <Step title="Configure trigger">
+    Set up the specific details for your trigger (e.g., which form to monitor).
+  </Step>
+  
+  <Step title="Add an action">
+    Click "+" to add an action step, then select an app and action.
+  </Step>
+  
+  <Step title="Configure action">
+    Set up the action details, mapping fields from your trigger to the appropriate places in your action.
+  </Step>
+  
+  <Step title="Add additional actions or filters">
+    Add more actions if needed, or add filters to control when your workflow runs.
+  </Step>
+  
+  <Step title="Test your workflow">
+    Use the test feature to verify each step is working correctly.
+  </Step>
+  
+  <Step title="Name your workflow">
+    Give your workflow a clear name following our [naming conventions](/automations/naming-conventions).
+  </Step>
+  
+  <Step title="Activate the workflow">
+    Toggle the workflow to "Active" status to start it running.
+  </Step>
+</Steps>
+
+## Advanced Pabbly Features
+
+### Conditional Logic
+
+Pabbly offers conditional logic through its "Conditions" feature:
+
+<Frame>
+  <img src="/images/pabbly-conditions.png" alt="Pabbly Conditions" className="rounded-lg" />
+</Frame>
+
+To add conditions:
+
+1. Click the "+" icon after a step
+2. Select "Conditions"
+3. Choose a type of condition (If/Else, Switch)
+4. Configure your conditions
+5. Add actions for each condition path
+
+### Data Formatting
+
+Pabbly includes built-in data formatting options:
+
+<Frame>
+  <img src="/images/pabbly-formatters.png" alt="Pabbly Formatters" className="rounded-lg" />
+</Frame>
+
+Common formatters:
+
+- Text transformations (uppercase, lowercase, replace)
+- Number formatting (round, fixed decimal places)
+- Date formatting
+- JSON/XML parsing
+
+### Custom JavaScript
+
+For complex data transformations, Pabbly allows custom JavaScript code:
+
+<Frame>
+  <img src="/images/pabbly-code.png" alt="Pabbly Code" className="rounded-lg" />
+</Frame>
+
+Example code for customer name formatting:
+
+```javascript
+// Input: data.firstName, data.lastName
+function formatName(firstName, lastName) {
+  firstName = firstName || '';
+  lastName = lastName || '';
+  
+  // Format the name with proper capitalization
+  firstName = firstName.trim().charAt(0).toUpperCase() + firstName.trim().slice(1).toLowerCase();
+  lastName = lastName.trim().charAt(0).toUpperCase() + lastName.trim().slice(1).toLowerCase();
+  
+  return {
+    formattedFirstName: firstName,
+    formattedLastName: lastName,
+    fullName: `${firstName} ${lastName}`.trim()
+  };
+}
+
+// Process the inputs
+const result = formatName(data.firstName, data.lastName);
+
+// Return the formatted values
+return {
+  first_name: result.formattedFirstName,
+  last_name: result.formattedLastName,
+  full_name: result.fullName
+};
+```
+
+### Webhook Integration
+
+Pabbly offers powerful webhook functionality:
+
+<AccordionGroup>
+  <Accordion title="Webhook Triggers">
+    Use webhooks as triggers to start workflows from external systems:
+    
+    1. Select "Webhooks" as the trigger app
+    2. Choose "Catch Hook" as the event
+    3. Pabbly generates a unique webhook URL
+    4. Configure your external system to send data to this URL
+    5. Test the webhook to see the data structure
+  </Accordion>
+  
+  <Accordion title="Webhook Actions">
+    Send data to external systems using webhook actions:
+    
+    1. Add a "Webhooks" action
+    2. Select "Send Data" as the action
+    3. Configure the webhook URL, method, headers, and payload
+    4. Test the webhook to ensure data is sent correctly
+  </Accordion>
+</AccordionGroup>
+
+## Common Integrations
+
+### Google Sheets
+
+<AccordionGroup>
+  <Accordion title="Setting up Google Sheets Trigger">
+    Common triggers:
+    
+    - New Row Added
+    - Row Updated
+    
+    Configuration tips:
+    
+    - Always use a sheet with headers in the first row
+    - Test with sample data to ensure proper mapping
+  </Accordion>
+  
+  <Accordion title="Google Sheets Actions">
+    Common actions:
+    
+    - Add Row
+    - Update Row
+    - Find Row
+    
+    Best practices:
+    
+    - Use consistent column naming
+    - Set up error handling for when rows aren't found
+    - Consider formatting data before writing to sheets
+  </Accordion>
+</AccordionGroup>
+
+### Slack
+
+<AccordionGroup>
+  <Accordion title="Slack Notifications">
+    To send Slack notifications:
+    
+    1. Add a Slack action
+    2. Choose "Send Channel Message" or "Send Direct Message"
+    3. Connect your Slack account
+    4. Select the channel or user
+    5. Compose the message with dynamic data
+    
+    Example message format:
+    ```
+    *New Lead Created*
+    *Name:* {{data.name}}
+    *Email:* {{data.email}}
+    *Source:* {{data.source}}
+    *Date:* {{formatDate(data.created_at, "MMM D, YYYY h:mm A")}}
+    ```
+  </Accordion>
+  
+  <Accordion title="Advanced Slack Formatting">
+    For better-looking Slack messages:
+    
+    - Use markdown formatting (`*bold*`, `_italic_`, `` `code` ``)
+    - Add emoji icons for visual cues (📊, ✅, ⚠️)
+    - Use bullet points for lists
+    - Include links to relevant resources
+    - For complex messages, consider using Slack's Block Kit format
+  </Accordion>
+</AccordionGroup>
+
+### HTTP Requests
+
+<AccordionGroup>
+  <Accordion title="Making API Calls">
+    To make HTTP requests to external APIs:
+    
+    1. Add an "HTTP" action
+    2. Select the appropriate method (GET, POST, PUT, DELETE)
+    3. Enter the API URL
+    4. Configure headers (typically Content-Type: application/json)
+    5. Format the request body if needed
+    6. Test the request to ensure it works
+    
+    Example configuration for a REST API call:
+    ```
+    URL: https://api.example.com/v1/customers
+    Method: POST
+    Headers: 
+      Content-Type: application/json
+      Authorization: Bearer {{data.api_key}}
+    Body:
+      {
+        "name": "{{data.name}}",
+        "email": "{{data.email}}",
+        "phone": "{{data.phone}}"
+      }
+    ```
+  </Accordion>
+  
+  <Accordion title="Handling API Responses">
+    After making an API request:
+    
+    - Parse the response data for use in subsequent steps
+    - Check for error codes and handle failures
+    - Extract only the needed data to simplify later steps
+    
+    Common response handling:
+    ```javascript
+    // Check if the request was successful
+    if (data.statusCode >= 200 && data.statusCode < 300) {
+      // Extract the customer ID from the response
+      return {
+        customer_id: data.body.id,
+        success: true
+      };
+    } else {
+      // Handle error
+      return {
+        error_message: data.body.message || "API request failed",
+        status_code: data.statusCode,
+        success: false
+      };
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Workflow Management
+
+### Organizing Workflows
+
+To keep workflows organized:
+
+1. Use consistent naming following our [naming conventions](/automations/naming-conventions)
+2. Add detailed descriptions to each workflow
+3. Use tags to categorize workflows (e.g., #sales, #operations, #notifications)
+4. Group related workflows in folders
+
+### Monitoring and Alerting
+
+To ensure your workflows run smoothly:
+
+1. Regularly check the task history for errors
+2. Set up error notifications for critical workflows
+3. Create a monitoring workflow that checks for failures and sends alerts
+4. Document expected behavior and error handling procedures
+
+### Version Control
+
+Pabbly doesn't have built-in versioning, so follow these practices:
+
+1. Clone workflows before making significant changes
+2. Keep a changelog in the workflow description
+3. Use a naming convention for versions (e.g., append "v2.0" to the name)
+4. Document changes in the shared Miro board for critical workflows
+
+## Troubleshooting
+
+When a workflow isn't working as expected:
+
+<Steps>
+  <Step title="Check task history">
+    View recent task executions to identify where the failure occurred.
+  </Step>
+  
+  <Step title="Examine error messages">
+    Pabbly provides error details that can help diagnose the issue.
+  </Step>
+  
+  <Step title="Test individual steps">
+    Use the testing feature to verify each step in isolation.
+  </Step>
+  
+  <Step title="Verify connections">
+    Ensure all app connections are still valid and working.
+  </Step>
+  
+  <Step title="Check data mapping">
+    Incorrect data mapping is a common source of errors.
+  </Step>
+  
+  <Step title="Look for recent changes">
+    If a previously working workflow failed, check if any third-party apps have changed.
+  </Step>
+</Steps>
+
+### Common Issues and Solutions
+
+<AccordionGroup>
+  <Accordion title="Authentication Failures">
+    **Symptoms:** 401/403 errors, "Unauthorized" messages
+    
+    **Solutions:**
+    - Reconnect the app integration
+    - Check if API keys or tokens need renewal
+    - Verify that connected accounts have the necessary permissions
+  </Accordion>
+  
+  <Accordion title="Data Format Problems">
+    **Symptoms:** Invalid data errors, unexpected null values
+    
+    **Solutions:**
+    - Add data validation steps
+    - Use formatters to ensure data is in the correct format
+    - Add error handling for missing or invalid data
+  </Accordion>
+  
+  <Accordion title="Workflow Timing Issues">
+    **Symptoms:** Workflows run at unexpected times or not at all
+    
+    **Solutions:**
+    - Check trigger settings
+    - Verify polling intervals for non-webhook triggers
+    - Ensure external systems are sending data correctly
+  </Accordion>
+  
+  <Accordion title="Rate Limiting">
+    **Symptoms:** 429 errors, throttling messages
+    
+    **Solutions:**
+    - Add delays between actions
+    - Reduce workflow frequency
+    - Batch requests where possible
+  </Accordion>
+</AccordionGroup>
+
+## Pabbly vs. Zapier Differences
+
+<CardGroup cols={2}>
+  <Card title="Terminology" icon="language">
+    - "Workflows" in Pabbly = "Zaps" in Zapier
+    - "Tasks" in Pabbly = individual runs of a step
+    - "Connections" in Pabbly = app integrations
+  </Card>
+  
+  <Card title="Interface Differences" icon="display">
+    - Pabbly uses a more linear workflow builder
+    - Testing is handled differently; always test each step
+    - Error handling is less granular in Pabbly
+    - History and logs are accessed through the "Task History" tab
+  </Card>
+  
+  <Card title="Feature Differences" icon="puzzle-piece">
+    - Pabbly has fewer native integrations than Zapier
+    - Conditional logic is structured differently
+    - Pabbly doesn't have built-in "Paths" like Zapier
+    - Error handling options are more limited
+  </Card>
+  
+  <Card title="Pricing Model" icon="money-bill">
+    - Pabbly charges based on number of workflows and connections
+    - Zapier charges based on task usage
+    - Pabbly is more cost-effective for high-volume, simple workflows
+    - Zapier offers more features but at a higher price point
+  </Card>
+</CardGroup>
+
+## Pabbly Security Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Account Security" icon="shield-check">
+    - Use strong, unique passwords
+    - Keep access limited to necessary team members
+    - Request access removal for departing employees
+    - Regularly audit who has access
+  </Card>
+  
+  <Card title="Data Security" icon="lock">
+    - Minimize sensitive data in workflows
+    - Never hard-code credentials or API keys
+    - Use secured connections for all integrations
+    - Regularly review connected apps
+  </Card>
+  
+  <Card title="Testing Security" icon="vials">
+    - Test workflows with non-sensitive test data
+    - Never use production credentials in test workflows
+    - Verify output data doesn't contain sensitive information
+    - Review logs to ensure they don't capture sensitive data
+  </Card>
+  
+  <Card title="Documentation" icon="file-lines">
+    - Document all workflows thoroughly
+    - Include security considerations in workflow documentation
+    - Note what data is being processed and stored
+    - Document error handling procedures
+  </Card>
+</CardGroup>
+
+## Duraclim Pabbly Guidelines
+
+### Workflow Documentation
+
+Every Pabbly workflow should include:
+
+1. A clear name following our [naming conventions](/automations/naming-conventions)
+2. Detailed description explaining:
+   - The workflow's purpose
+   - Trigger conditions
+   - Expected outcomes
+   - Known limitations
+3. Documentation in the shared Miro board for critical workflows
+4. Error handling procedures
+
+### Testing Requirements
+
+Before activating a workflow:
+
+1. Test with real or representative test data
+2. Verify all steps execute correctly
+3. Check for proper error handling
+4. Document expected behavior
+5. Have another team member review complex workflows
+
+### Maintenance Schedule
+
+For ongoing reliability:
+
+1. Review active workflows quarterly
+2. Check for error patterns in task history
+3. Verify all connections are working properly
+4. Update documentation as workflows evolve
+5. Optimize high-use workflows for performance
+
+## Migration Between Platforms
+
+### When to Migrate from Zapier to Pabbly
+
+Consider migrating from Zapier to Pabbly when:
+
+- The workflow has high task volume
+- The workflow is stable and rarely needs debugging
+- All required integrations are available in Pabbly
+- The workflow uses simple logic patterns
+- Cost optimization is a priority
+
+### Migration Process
+
+When migrating a workflow from Zapier to Pabbly:
+
+<Steps>
+  <Step title="Document the existing Zap">
+    Create detailed documentation of the current Zapier workflow.
+  </Step>
+  
+  <Step title="Identify dependencies">
+    Note any Zapier-specific features being used.
+  </Step>
+  
+  <Step title="Check app availability">
+    Verify all needed integrations are available in Pabbly.
+  </Step>
+  
+  <Step title="Create the Pabbly workflow">
+    Recreate the workflow in Pabbly Connect.
+  </Step>
+  
+  <Step title="Test thoroughly">
+    Run parallel tests to ensure identical functionality.
+  </Step>
+  
+  <Step title="Update documentation">
+    Update all relevant documentation with the new workflow details.
+  </Step>
+  
+  <Step title="Switch over">
+    Deactivate the Zapier workflow and activate the Pabbly version.
+  </Step>
+  
+  <Step title="Monitor closely">
+    Watch the new workflow closely for the first few days.
+  </Step>
+</Steps>
+
+## Limitations and Workarounds
+
+<AccordionGroup>
+  <Accordion title="Limited Native Integrations">
+    **Limitation:** Pabbly has fewer native integrations than Zapier.
+    
+    **Workaround:** Use webhook integrations or HTTP requests to connect to services without native apps.
+    
+    **Example:** 
+    ```
+    1. Create a webhook trigger in Pabbly
+    2. Configure the external service to send data to this webhook
+    3. Parse the incoming data using Pabbly's formatters
+    ```
+  </Accordion>
+  
+  <Accordion title="Simpler Conditional Logic">
+    **Limitation:** Pabbly's conditional logic is less flexible than Zapier's Paths.
+    
+    **Workaround:** Use multiple conditions in sequence or split into separate workflows.
+    
+    **Example:**
+    ```
+    Instead of complex branching paths, create:
+    1. A base workflow with simple conditions
+    2. Webhook outputs for complex cases
+    3. Separate workflows triggered by these webhooks
+    ```
+  </Accordion>
+  
+  <Accordion title="Limited Error Handling">
+    **Limitation:** Pabbly has fewer error handling options.
+    
+    **Workaround:** Create dedicated error-handling workflows triggered by webhooks.
+    
+    **Example:**
+    ```
+    1. Add error detection in your workflows
+    2. When errors are detected, send data to an error-handling webhook
+    3. Create a separate workflow to process errors and send notifications
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Resources
+
+- [Pabbly Connect Help Docs](https://www.pabbly.com/connect/help/)
+- [Pabbly Connect Blog](https://www.pabbly.com/blog/category/pabbly-connect/)
+- [Internal Pabbly Examples](/automations/examples)
+- [Automation Design Standards](/automations/design-standards)

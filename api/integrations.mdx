@@ -1,0 +1,762 @@
+---
+title: API Integrations
+description: Guide to integrating Duraclim's APIs with third-party services and platforms
+icon: plug
+---
+
+# API Integrations
+
+This document provides guidance on integrating Duraclim's APIs with external systems and third-party platforms. It includes integration patterns, authentication methods, and examples for common integration scenarios.
+
+<Frame>
+  <img src="/images/api-integrations-overview.png" alt="API Integrations Overview" className="rounded-lg" />
+</Frame>
+
+## Integration Strategies
+
+There are several ways to integrate with Duraclim's APIs, depending on your requirements and technical capabilities:
+
+<CardGroup cols={2}>
+  <Card title="Direct API Integration" icon="code">
+    Directly call our REST APIs from your application or service.
+    
+    **Best for:** Custom applications, tight integrations, real-time data needs
+  </Card>
+  
+  <Card title="Webhook-Based Integration" icon="bolt">
+    Subscribe to event notifications through webhooks.
+    
+    **Best for:** Event-driven architectures, asynchronous processes
+  </Card>
+  
+  <Card title="Integration Platforms" icon="diagram-project">
+    Use Zapier, Pabbly Connect, or similar platforms as middleware.
+    
+    **Best for:** No-code/low-code solutions, simple integrations
+  </Card>
+  
+  <Card title="Partner Integrations" icon="handshake">
+    Use pre-built connectors from our technology partners.
+    
+    **Best for:** Enterprise solutions, standardized processes
+  </Card>
+</CardGroup>
+
+## Authentication Methods
+
+All integrations with Duraclim APIs require authentication. Choose the appropriate method based on your integration type:
+
+<AccordionGroup>
+  <Accordion title="API Key Authentication">
+    Most straightforward method for server-to-server integrations.
+    
+    ```bash
+    # Example API call with API Key
+    curl -X GET "https://api.duraclim.com/v1/customers" \
+      -H "x-api-key: YOUR_API_KEY"
+    ```
+    
+    **Use when:** 
+    - Integrating from a secure backend
+    - Creating admin/operational tools
+    - Performing scripted or automated tasks
+    
+    [Request an API key](https://api.duraclim.com/request-key)
+  </Accordion>
+  
+  <Accordion title="OAuth 2.0">
+    Secure protocol for allowing third-party applications to access user data.
+    
+    ```bash
+    # Step 1: Get authorization code
+    # Redirect user to:
+    # https://auth.duraclim.com/oauth/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=YOUR_REDIRECT_URI&response_type=code&scope=read:customers write:orders
+    
+    # Step 2: Exchange code for access token
+    curl -X POST "https://auth.duraclim.com/oauth/token" \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      -d "grant_type=authorization_code&code=AUTHORIZATION_CODE&redirect_uri=YOUR_REDIRECT_URI&client_id=YOUR_CLIENT_ID&client_secret=YOUR_CLIENT_SECRET"
+    
+    # Step 3: Use access token
+    curl -X GET "https://api.duraclim.com/v1/customers" \
+      -H "Authorization: Bearer ACCESS_TOKEN"
+    ```
+    
+    **Use when:** 
+    - Creating customer-facing integrations
+    - Accessing user-specific data
+    - Building marketplace apps
+    
+    [Register an OAuth application](https://api.duraclim.com/oauth/register)
+  </Accordion>
+  
+  <Accordion title="JSON Web Tokens (JWT)">
+    For service-to-service authentication, especially with our Go microservices.
+    
+    ```bash
+    # Step 1: Obtain a token
+    curl -X POST "https://api.duraclim.com/v1/tokens" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "client_id": "YOUR_CLIENT_ID",
+        "client_secret": "YOUR_CLIENT_SECRET"
+      }'
+    
+    # Response:
+    # {
+    #   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    #   "expires_at": "2023-10-15T15:30:45Z"
+    # }
+    
+    # Step 2: Use the token
+    curl -X GET "https://api.duraclim.com/v1/orders" \
+      -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    ```
+    
+    **Use when:** 
+    - Integrating with our microservices
+    - Creating internal tooling
+    - Temporary access needs
+  </Accordion>
+</AccordionGroup>
+
+## Webhook Integration
+
+Webhooks allow you to receive real-time notifications about events in the Duraclim system.
+
+### Setting Up Webhooks
+
+<Steps>
+  <Step title="Register a webhook endpoint">
+    Create a publicly accessible HTTPS endpoint on your server to receive webhook events.
+  </Step>
+  
+  <Step title="Subscribe to events">
+    Use the [webhook API](/api/endpoints#webhooks) to register your endpoint:
+    
+    ```bash
+    curl -X POST "https://api.duraclim.com/v1/webhooks" \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "url": "https://your-domain.com/webhooks/duraclim",
+        "events": ["order.created", "order.updated", "order.completed"],
+        "description": "Order processing integration"
+      }'
+    ```
+  </Step>
+  
+  <Step title="Implement verification">
+    Verify webhook payloads to ensure they come from Duraclim:
+    
+    ```javascript
+    // Node.js example
+    const crypto = require('crypto');
+    
+    function verifyWebhookSignature(payload, signature, secret) {
+      const hmac = crypto.createHmac('sha256', secret);
+      const calculatedSignature = hmac.update(payload).digest('hex');
+      return crypto.timingSafeEqual(
+        Buffer.from(calculatedSignature),
+        Buffer.from(signature)
+      );
+    }
+    
+    // In your webhook handler
+    app.post('/webhooks/duraclim', (req, res) => {
+      const signature = req.headers['x-duraclim-signature'];
+      const payload = JSON.stringify(req.body);
+      const webhookSecret = process.env.DURACLIM_WEBHOOK_SECRET;
+      
+      if (!verifyWebhookSignature(payload, signature, webhookSecret)) {
+        return res.status(401).send('Invalid signature');
+      }
+      
+      // Process the event
+      const event = req.body;
+      console.log(`Received event: ${event.type}`);
+      
+      // Handle different event types
+      switch(event.type) {
+        case 'order.created':
+          // Handle new order
+          break;
+        case 'order.updated':
+          // Handle order update
+          break;
+        // ... and so on
+      }
+      
+      res.status(200).send('Webhook received');
+    });
+    ```
+  </Step>
+  
+  <Step title="Test your endpoint">
+    Use the test functionality in the webhook dashboard to verify your endpoint is working correctly.
+  </Step>
+</Steps>
+
+### Webhook Event Types
+
+Here are the main webhook event types you can subscribe to:
+
+<table>
+  <thead>
+    <tr>
+      <th>Event Type</th>
+      <th>Description</th>
+      <th>Payload Example</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>order.created</td>
+      <td>Triggered when a new order is created</td>
+      <td>
+        ```json
+        {
+          "type": "order.created",
+          "data": {
+            "id": "ord_123",
+            "customer_id": "cust_456",
+            "total_amount": 250.00,
+            "status": "pending",
+            "created_at": "2023-01-15T10:30:00Z"
+          }
+        }
+        ```
+      </td>
+    </tr>
+    <tr>
+      <td>order.updated</td>
+      <td>Triggered when an order is updated</td>
+      <td>
+        ```json
+        {
+          "type": "order.updated",
+          "data": {
+            "id": "ord_123",
+            "customer_id": "cust_456",
+            "total_amount": 250.00,
+            "status": "scheduled",
+            "created_at": "2023-01-15T10:30:00Z",
+            "updated_at": "2023-01-15T11:45:00Z"
+          }
+        }
+        ```
+      </td>
+    </tr>
+    <tr>
+      <td>order.completed</td>
+      <td>Triggered when an order is marked as completed</td>
+      <td>
+        ```json
+        {
+          "type": "order.completed",
+          "data": {
+            "id": "ord_123",
+            "customer_id": "cust_456",
+            "total_amount": 250.00,
+            "status": "completed",
+            "created_at": "2023-01-15T10:30:00Z",
+            "completed_at": "2023-01-16T14:20:00Z"
+          }
+        }
+        ```
+      </td>
+    </tr>
+    <tr>
+      <td>customer.created</td>
+      <td>Triggered when a new customer is created</td>
+      <td>
+        ```json
+        {
+          "type": "customer.created",
+          "data": {
+            "id": "cust_456",
+            "name": "John Doe",
+            "email": "john@example.com",
+            "created_at": "2023-01-15T09:20:00Z"
+          }
+        }
+        ```
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Integration with Zapier
+
+Duraclim offers a Zapier integration for connecting our system with 3,000+ apps without any coding:
+
+<Steps>
+  <Step title="Connect to the Duraclim Zapier App">
+    Search for "Duraclim" in the Zapier app directory and connect to it.
+  </Step>
+  
+  <Step title="Authenticate">
+    Generate an API key from the Duraclim dashboard and use it to authenticate the Zapier connection.
+  </Step>
+  
+  <Step title="Create a Zap">
+    Set up a trigger (e.g., "New Order in Duraclim") and an action (e.g., "Create Contact in CRM").
+  </Step>
+  
+  <Step title="Configure the integration">
+    Map fields from Duraclim to the destination app.
+  </Step>
+  
+  <Step title="Test and activate">
+    Test the integration with sample data and then turn on your Zap.
+  </Step>
+</Steps>
+
+### Available Zapier Triggers
+
+- New Order Created
+- Order Status Changed
+- New Customer
+- New Appointment
+- Service Completed
+
+### Available Zapier Actions
+
+- Create Order
+- Update Order Status
+- Create Customer
+- Update Customer
+- Schedule Appointment
+
+## Integrating with CRM Systems
+
+### Pipedrive Integration
+
+<Steps>
+  <Step title="Set up OAuth application">
+    Register an OAuth application in Pipedrive's developer portal.
+  </Step>
+  
+  <Step title="Configure the integration">
+    Use our pre-built Pipedrive connector:
+    
+    ```javascript
+    // Node.js example
+    const { DuraclimPipedrive } = require('@duraclim/integrations');
+    
+    const pipedrive = new DuraclimPipedrive({
+      clientId: 'YOUR_PIPEDRIVE_CLIENT_ID',
+      clientSecret: 'YOUR_PIPEDRIVE_CLIENT_SECRET',
+      redirectUri: 'https://your-app.com/callback'
+    });
+    
+    // Authorize with Pipedrive
+    const authUrl = pipedrive.getAuthorizationUrl();
+    // Redirect user to authUrl
+    
+    // After callback, exchange code for access token
+    const tokens = await pipedrive.getAccessToken(code);
+    
+    // Sync customer data
+    await pipedrive.syncCustomer({
+      id: 'cust_123',
+      name: 'John Doe',
+      email: 'john@example.com',
+      phone: '+1234567890'
+    });
+    ```
+  </Step>
+  
+  <Step title="Set up webhooks">
+    Configure webhooks to keep data in sync between systems.
+  </Step>
+  
+  <Step title="Map custom fields">
+    Map Duraclim fields to Pipedrive custom fields as needed.
+  </Step>
+</Steps>
+
+### Salesforce Integration
+
+<Steps>
+  <Step title="Create a Connected App">
+    Set up a Connected App in Salesforce with OAuth settings.
+  </Step>
+  
+  <Step title="Configure authentication">
+    Use the OAuth 2.0 flow to connect Duraclim to Salesforce:
+    
+    ```javascript
+    // Node.js example with jsforce
+    const jsforce = require('jsforce');
+    const { DuraclimSalesforce } = require('@duraclim/integrations');
+    
+    const salesforce = new DuraclimSalesforce({
+      clientId: 'YOUR_SALESFORCE_CLIENT_ID',
+      clientSecret: 'YOUR_SALESFORCE_CLIENT_SECRET',
+      redirectUri: 'https://your-app.com/callback'
+    });
+    
+    // Get authorization URL
+    const authUrl = salesforce.getAuthorizationUrl();
+    // Redirect user to authUrl
+    
+    // After callback, exchange code for access token
+    const connection = await salesforce.createConnection(code);
+    
+    // Sync customer data
+    await salesforce.syncCustomer(connection, {
+      id: 'cust_123',
+      name: 'John Doe',
+      email: 'john@example.com',
+      phone: '+1234567890'
+    });
+    ```
+  </Step>
+  
+  <Step title="Set up object mappings">
+    Configure mappings between Duraclim objects and Salesforce objects.
+  </Step>
+  
+  <Step title="Configure data sync">
+    Set up bidirectional data synchronization between the systems.
+  </Step>
+</Steps>
+
+## Integrating with Payment Processors
+
+### Stripe Integration
+
+<Steps>
+  <Step title="Set up Stripe account">
+    Create a Stripe account if you don't have one already.
+  </Step>
+  
+  <Step title="Get API keys">
+    Obtain your Stripe API keys from the Stripe Dashboard.
+  </Step>
+  
+  <Step title="Configure the integration">
+    ```javascript
+    // Node.js example
+    const stripe = require('stripe')('YOUR_STRIPE_SECRET_KEY');
+    const { DuraclimStripe } = require('@duraclim/integrations');
+    
+    const stripeIntegration = new DuraclimStripe({
+      apiKey: 'YOUR_STRIPE_SECRET_KEY'
+    });
+    
+    // Create a payment intent
+    const paymentIntent = await stripeIntegration.createPaymentIntent({
+      orderId: 'ord_123',
+      amount: 25000, // $250.00
+      currency: 'usd',
+      customer: {
+        id: 'cust_456',
+        email: 'john@example.com'
+      }
+    });
+    
+    // Return client secret to your frontend
+    return { clientSecret: paymentIntent.client_secret };
+    ```
+  </Step>
+  
+  <Step title="Implement webhook handling">
+    Set up a webhook endpoint to receive Stripe events.
+    
+    ```javascript
+    // Node.js example
+    app.post('/webhooks/stripe', async (req, res) => {
+      const sig = req.headers['stripe-signature'];
+      
+      try {
+        const event = stripe.webhooks.constructEvent(
+          req.rawBody,
+          sig,
+          'YOUR_STRIPE_WEBHOOK_SECRET'
+        );
+        
+        // Handle different event types
+        switch (event.type) {
+          case 'payment_intent.succeeded':
+            await handleSuccessfulPayment(event.data.object);
+            break;
+          case 'payment_intent.payment_failed':
+            await handleFailedPayment(event.data.object);
+            break;
+          // ... handle other event types
+        }
+        
+        res.status(200).send('Webhook received');
+      } catch (err) {
+        res.status(400).send(`Webhook Error: ${err.message}`);
+      }
+    });
+    ```
+  </Step>
+</Steps>
+
+### Square Integration
+
+<Steps>
+  <Step title="Create a Square Developer Account">
+    Sign up for a Square Developer account.
+  </Step>
+  
+  <Step title="Create an application">
+    Create a new application in the Square Developer Dashboard.
+  </Step>
+  
+  <Step title="Configure the integration">
+    ```javascript
+    // Node.js example
+    const { Client, Environment } = require('square');
+    const { DuraclimSquare } = require('@duraclim/integrations');
+    
+    const squareIntegration = new DuraclimSquare({
+      accessToken: 'YOUR_SQUARE_ACCESS_TOKEN',
+      environment: Environment.Sandbox // or Environment.Production
+    });
+    
+    // Create a payment
+    const payment = await squareIntegration.createPayment({
+      orderId: 'ord_123',
+      sourceId: 'CARD_NONCE_FROM_SQUARE_FORM',
+      amount: 25000, // $250.00
+      currency: 'USD',
+      customerId: 'square_customer_id',
+      locationId: 'YOUR_SQUARE_LOCATION_ID',
+      idempotencyKey: 'a-unique-idempotency-key'
+    });
+    
+    return { paymentId: payment.id };
+    ```
+  </Step>
+  
+  <Step title="Implement webhook handling">
+    Set up a webhook endpoint to receive Square events.
+  </Step>
+</Steps>
+
+## Integrating with Field Service Management
+
+### Jobber Integration
+
+Duraclim's native integration with Jobber for field service management:
+
+<Steps>
+  <Step title="Set up API credentials">
+    Obtain API credentials from your Jobber account settings.
+  </Step>
+  
+  <Step title="Configure the integration">
+    ```javascript
+    // Node.js example
+    const { DuraclimJobber } = require('@duraclim/integrations');
+    
+    const jobber = new DuraclimJobber({
+      clientId: 'YOUR_JOBBER_CLIENT_ID',
+      clientSecret: 'YOUR_JOBBER_CLIENT_SECRET',
+      redirectUri: 'https://your-app.com/callback'
+    });
+    
+    // Authorize with Jobber
+    const authUrl = jobber.getAuthorizationUrl();
+    // Redirect user to authUrl
+    
+    // After callback, exchange code for access token
+    const tokens = await jobber.getAccessToken(code);
+    
+    // Create a job in Jobber
+    const job = await jobber.createJob({
+      client: {
+        id: 'jobber_client_id', // or email if new client
+        name: 'John Doe',
+        email: 'john@example.com',
+        phone: '+1234567890'
+      },
+      service: {
+        name: 'Duct Cleaning',
+        description: 'Full house duct cleaning service'
+      },
+      scheduled_at: '2023-03-15T10:00:00Z',
+      duration: 120, // minutes
+      address: {
+        street1: '123 Main St',
+        city: 'Toronto',
+        province: 'ON',
+        postal_code: 'M5V 2N4',
+        country: 'Canada'
+      }
+    });
+    
+    return { jobberId: job.id };
+    ```
+  </Step>
+  
+  <Step title="Set up webhooks">
+    Configure webhooks to receive updates about jobs and scheduling.
+  </Step>
+</Steps>
+
+## Best Practices for Integration
+
+<AccordionGroup>
+  <Accordion title="Error Handling">
+    - Implement proper error handling and retry logic
+    - Log detailed error information for troubleshooting
+    - Set up monitoring and alerting for integration failures
+    - Consider using a dead letter queue for failed events
+    
+    Example error handling:
+    ```javascript
+    try {
+      const result = await api.createResource(data);
+      return result;
+    } catch (error) {
+      if (error.status === 429) {
+        // Rate limit exceeded, retry after delay
+        await sleep(2000);
+        return await api.createResource(data);
+      } else if (error.status >= 500) {
+        // Server error, retry with exponential backoff
+        await exponentialBackoff(retryCount);
+        return await retryFunction(() => api.createResource(data), 3);
+      } else {
+        // Log detailed error for client errors
+        logger.error('Integration error', {
+          error: error.message,
+          data,
+          statusCode: error.status
+        });
+        throw error;
+      }
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Data Synchronization">
+    - Determine sync strategy (real-time, scheduled, batch)
+    - Consider data volume and rate limits
+    - Implement idempotent operations to avoid duplicates
+    - Track sync status with timestamps or sequence numbers
+    - Implement conflict resolution strategies
+    
+    Example sync tracking:
+    ```javascript
+    async function syncCustomers() {
+      // Get last sync timestamp
+      const lastSync = await getLastSyncTimestamp('customers');
+      
+      // Fetch customers updated since last sync
+      const customers = await duraclimApi.getCustomers({
+        updatedSince: lastSync
+      });
+      
+      // Process each customer
+      for (const customer of customers) {
+        await destinationApi.upsertCustomer(mapCustomer(customer));
+      }
+      
+      // Update last sync timestamp
+      await updateSyncTimestamp('customers', new Date());
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Security Best Practices">
+    - Never hardcode credentials in source code
+    - Store API keys and secrets in a secure vault
+    - Implement token rotation for long-lived integrations
+    - Use HTTPS for all API communications
+    - Validate and sanitize all incoming data
+    - Apply least privilege principle for API access
+    
+    Example secure configuration:
+    ```javascript
+    // Load secrets from environment or secret manager
+    const config = {
+      apiKey: process.env.DURACLIM_API_KEY,
+      clientSecret: process.env.DURACLIM_CLIENT_SECRET,
+      webhookSecret: process.env.DURACLIM_WEBHOOK_SECRET
+    };
+    
+    // Validate that all required secrets are present
+    Object.entries(config).forEach(([key, value]) => {
+      if (!value) {
+        throw new Error(`Missing required configuration: ${key}`);
+      }
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="Testing Integration">
+    - Use sandbox/test environments for development
+    - Create automated tests for integration workflows
+    - Implement integration health checks
+    - Test edge cases and error scenarios
+    - Use mock servers for testing webhooks
+    
+    Example integration test:
+    ```javascript
+    describe('Duraclim to CRM Integration', () => {
+      beforeEach(() => {
+        // Set up test environment
+        setupMocks();
+      });
+      
+      it('should sync a new customer to CRM', async () => {
+        // Arrange
+        const customer = createTestCustomer();
+        mockDuraclimApi.onGet('/customers/123').reply(200, customer);
+        mockCrmApi.onPost('/contacts').reply(201, { id: 'crm_456' });
+        
+        // Act
+        const result = await integration.syncCustomerToCrm('123');
+        
+        // Assert
+        expect(result.success).toBe(true);
+        expect(result.crmId).toBe('crm_456');
+        expect(mockCrmApi.history.post.length).toBe(1);
+        expect(JSON.parse(mockCrmApi.history.post[0].data)).toMatchObject({
+          firstName: customer.name.split(' ')[0],
+          lastName: customer.name.split(' ')[1],
+          email: customer.email
+        });
+      });
+      
+      it('should handle CRM API errors gracefully', async () => {
+        // Arrange
+        const customer = createTestCustomer();
+        mockDuraclimApi.onGet('/customers/123').reply(200, customer);
+        mockCrmApi.onPost('/contacts').reply(500, { error: 'Server error' });
+        
+        // Act & Assert
+        await expect(integration.syncCustomerToCrm('123')).rejects.toThrow();
+        expect(mockErrorHandler.captureException).toHaveBeenCalled();
+      });
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Integration Support
+
+If you encounter issues with integration, you can get help through these channels:
+
+- [Developer Documentation](https://api.duraclim.com/docs)
+- [API Reference](/api/endpoints)
+- [Developer Forum](https://community.duraclim.com/dev)
+- [Email Support](mailto:api-support@duraclim.com)
+- [Integration Office Hours](https://calendly.com/duraclim-api/office-hours) - Weekly sessions for technical questions
+
+For enterprise integration support, contact our [solutions engineering team](mailto:solutions@duraclim.com).
+
+## Resources
+
+- [API Reference](/api/endpoints)
+- [Authentication Guide](/api/authentication)
+- [Webhook Guide](https://api.duraclim.com/docs/webhooks)
+- [Sample Applications](https://github.com/duraclim/integration-examples)
+- [Client Libraries](https://api.duraclim.com/docs/libraries)

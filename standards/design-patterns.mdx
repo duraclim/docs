@@ -1,0 +1,1493 @@
+---
+title: Design Patterns
+description: Common design patterns and architectural approaches used in Duraclim projects
+icon: sitemap
+---
+
+# Design Patterns
+
+This document outlines the design patterns and architectural approaches we use across Duraclim's projects to ensure consistency, maintainability, and scalability.
+
+<Frame>
+  <img src="/images/design-patterns-overview.png" alt="Design Patterns Overview" className="rounded-lg" />
+</Frame>
+
+## Architectural Patterns
+
+### Clean Architecture
+
+We follow Clean Architecture principles to separate concerns and ensure our applications are testable, maintainable, and scalable.
+
+<AccordionGroup>
+  <Accordion title="Core Principles">
+    - **Dependency Rule**: Dependencies should only point inward, with inner layers having no knowledge of outer layers
+    - **Separation of Concerns**: Separate business logic from infrastructure concerns
+    - **Independence of Frameworks**: The core business logic should not depend on external frameworks
+    - **Testability**: Business rules should be testable without UI, database, or external services
+  </Accordion>
+  
+  <Accordion title="Architectural Layers">
+    <Frame>
+      <img src="/images/clean-architecture-layers.png" alt="Clean Architecture Layers" className="rounded-lg" />
+    </Frame>
+    
+    - **Entities** (innermost): Enterprise-wide business rules and data structures
+    - **Use Cases**: Application-specific business rules
+    - **Interface Adapters**: Convert data between use cases and external formats
+    - **Frameworks & Drivers** (outermost): External frameworks, tools, and delivery mechanisms
+  </Accordion>
+  
+  <Accordion title="Implementation Example (Go)">
+    ```go
+    // Domain Layer (Entities)
+    package entity
+    
+    type User struct {
+        ID        string
+        Email     string
+        Name      string
+        CreatedAt time.Time
+    }
+    
+    // Use Case Layer
+    package usecase
+    
+    type UserRepository interface {
+        GetByID(ctx context.Context, id string) (*entity.User, error)
+        Create(ctx context.Context, user *entity.User) error
+        Update(ctx context.Context, user *entity.User) error
+    }
+    
+    type UserService struct {
+        repo UserRepository
+    }
+    
+    func NewUserService(repo UserRepository) *UserService {
+        return &UserService{repo: repo}
+    }
+    
+    func (s *UserService) GetUser(ctx context.Context, id string) (*entity.User, error) {
+        return s.repo.GetByID(ctx, id)
+    }
+    
+    // Interface Adapters Layer
+    package repository
+    
+    type PostgresUserRepository struct {
+        db *sql.DB
+    }
+    
+    func (r *PostgresUserRepository) GetByID(ctx context.Context, id string) (*entity.User, error) {
+        // Database implementation...
+    }
+    
+    // Framework & Drivers Layer
+    package http
+    
+    type UserHandler struct {
+        userService *usecase.UserService
+    }
+    
+    func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
+        // Extract ID from request
+        id := mux.Vars(r)["id"]
+        
+        // Call use case
+        user, err := h.userService.GetUser(r.Context(), id)
+        
+        // Return response...
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Implementation Example (TypeScript/Next.js)">
+    ```typescript
+    // Domain Layer (Entities)
+    // src/domain/entities/user.ts
+    export interface User {
+      id: string;
+      email: string;
+      name: string;
+      createdAt: Date;
+    }
+    
+    // Use Case Layer
+    // src/domain/usecases/user-service.ts
+    export interface UserRepository {
+      getById(id: string): Promise<User | null>;
+      create(user: User): Promise<User>;
+      update(user: User): Promise<User>;
+    }
+    
+    export class UserService {
+      constructor(private repository: UserRepository) {}
+      
+      async getUser(id: string): Promise<User | null> {
+        return this.repository.getById(id);
+      }
+    }
+    
+    // Interface Adapters Layer
+    // src/infrastructure/repositories/supabase-user-repository.ts
+    export class SupabaseUserRepository implements UserRepository {
+      constructor(private supabase: SupabaseClient) {}
+      
+      async getById(id: string): Promise<User | null> {
+        const { data, error } = await this.supabase
+          .from('users')
+          .select('*')
+          .eq('id', id)
+          .single();
+          
+        if (error || !data) return null;
+        
+        return {
+          id: data.id,
+          email: data.email,
+          name: data.name,
+          createdAt: new Date(data.created_at)
+        };
+      }
+    }
+    
+    // Framework & Drivers Layer
+    // src/app/api/users/[id]/route.ts
+    import { createClient } from '@/lib/supabase/server';
+    import { SupabaseUserRepository } from '@/infrastructure/repositories/supabase-user-repository';
+    import { UserService } from '@/domain/usecases/user-service';
+    
+    export async function GET(
+      request: Request,
+      { params }: { params: { id: string } }
+    ) {
+      const supabase = createClient();
+      const repository = new SupabaseUserRepository(supabase);
+      const service = new UserService(repository);
+      
+      const user = await service.getUser(params.id);
+      
+      if (!user) {
+        return new Response(JSON.stringify({ error: 'User not found' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      
+      return Response.json({ user });
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Microservices Architecture
+
+For larger systems, we use a microservices architecture to enable independent deployment, scaling, and development of services.
+
+<AccordionGroup>
+  <Accordion title="Key Principles">
+    - **Single Responsibility**: Each service should focus on a specific business capability
+    - **Autonomy**: Services can be developed, deployed, and scaled independently
+    - **Resilience**: Services should be designed to handle failures gracefully
+    - **Decentralized Data Management**: Each service manages its own data
+    - **API-First Design**: Well-defined APIs for communication between services
+  </Accordion>
+  
+  <Accordion title="Implementation Approach">
+    <Frame>
+      <img src="/images/microservices-architecture.png" alt="Microservices Architecture" className="rounded-lg" />
+    </Frame>
+    
+    Our microservices architecture typically includes:
+    
+    - **API Gateway**: Routes requests to appropriate services
+    - **Service Discovery**: Helps services find and communicate with each other
+    - **Authentication Service**: Centralized authentication and authorization
+    - **Business Domain Services**: Individual services for specific business capabilities
+    - **Message Broker**: For asynchronous communication between services
+  </Accordion>
+  
+  <Accordion title="Service Communication">
+    We use two primary communication patterns:
+    
+    1. **Synchronous Communication** (REST or gRPC):
+    ```go
+    // Client service making HTTP request
+    func (s *OrderService) GetUserDetails(ctx context.Context, userID string) (*User, error) {
+        url := fmt.Sprintf("%s/users/%s", s.userServiceURL, userID)
+        
+        req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+        if err != nil {
+            return nil, fmt.Errorf("creating request: %w", err)
+        }
+        
+        resp, err := s.httpClient.Do(req)
+        if err != nil {
+            return nil, fmt.Errorf("calling user service: %w", err)
+        }
+        defer resp.Body.Close()
+        
+        if resp.StatusCode != http.StatusOK {
+            return nil, fmt.Errorf("user service returned status %d", resp.StatusCode)
+        }
+        
+        var user User
+        if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
+            return nil, fmt.Errorf("decoding response: %w", err)
+        }
+        
+        return &user, nil
+    }
+    ```
+    
+    2. **Asynchronous Communication** (Message Queues):
+    ```go
+    // Publisher service
+    func (s *OrderService) PlaceOrder(ctx context.Context, order *Order) error {
+        // Business logic...
+        
+        // Publish event
+        event := OrderPlacedEvent{
+            OrderID:    order.ID,
+            CustomerID: order.CustomerID,
+            Amount:     order.TotalAmount,
+            Timestamp:  time.Now(),
+        }
+        
+        eventData, err := json.Marshal(event)
+        if err != nil {
+            return fmt.Errorf("marshaling event: %w", err)
+        }
+        
+        if err := s.publisher.Publish(ctx, "orders.placed", eventData); err != nil {
+            return fmt.Errorf("publishing event: %w", err)
+        }
+        
+        return nil
+    }
+    
+    // Subscriber service
+    func (s *NotificationService) HandleOrderPlaced(ctx context.Context, data []byte) error {
+        var event OrderPlacedEvent
+        if err := json.Unmarshal(data, &event); err != nil {
+            return fmt.Errorf("unmarshaling event: %w", err)
+        }
+        
+        // Send notification to customer
+        if err := s.sendOrderConfirmation(ctx, event.CustomerID, event.OrderID); err != nil {
+            return fmt.Errorf("sending notification: %w", err)
+        }
+        
+        return nil
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Serverless Architecture
+
+For certain use cases, we leverage serverless architecture to reduce operational complexity and enable automatic scaling.
+
+<AccordionGroup>
+  <Accordion title="Use Cases">
+    - **API Endpoints**: HTTP endpoints with variable traffic
+    - **Event Processing**: Processing events from various sources
+    - **Scheduled Tasks**: Running periodic jobs
+    - **Data Processing**: Processing data in response to events
+  </Accordion>
+  
+  <Accordion title="Implementation (Supabase Edge Functions)">
+    ```typescript
+    // Path: supabase/functions/process-payment/index.ts
+    import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+    
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    };
+    
+    serve(async (req) => {
+      // Handle CORS preflight requests
+      if (req.method === 'OPTIONS') {
+        return new Response('ok', { headers: corsHeaders });
+      }
+      
+      try {
+        // Process request
+        const { amount, customerId } = await req.json();
+        
+        // Create Supabase client
+        const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        
+        // Process payment
+        // ...payment processing logic...
+        
+        // Record payment in database
+        const { data, error } = await supabase
+          .from('payments')
+          .insert({
+            customer_id: customerId,
+            amount,
+            status: 'completed',
+          })
+          .select()
+          .single();
+          
+        if (error) throw error;
+        
+        // Return success response
+        return new Response(
+          JSON.stringify({ success: true, payment: data }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (error) {
+        // Return error response
+        return new Response(
+          JSON.stringify({ success: false, error: error.message }),
+          { 
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="Implementation (Next.js API Routes)">
+    ```typescript
+    // Path: app/api/webhooks/stripe/route.ts
+    import { NextRequest, NextResponse } from 'next/server';
+    import { createClient } from '@/lib/supabase/server';
+    import Stripe from 'stripe';
+    
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+    
+    export async function POST(request: NextRequest) {
+      const signature = request.headers.get('stripe-signature')!;
+      const body = await request.text();
+      
+      try {
+        // Verify webhook signature
+        const event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+        
+        // Handle the event
+        if (event.type === 'payment_intent.succeeded') {
+          const paymentIntent = event.data.object as Stripe.PaymentIntent;
+          
+          // Update order status in database
+          const supabase = createClient();
+          
+          const { error } = await supabase
+            .from('orders')
+            .update({ status: 'paid', updated_at: new Date().toISOString() })
+            .eq('payment_intent_id', paymentIntent.id);
+            
+          if (error) throw error;
+        }
+        
+        // Return success response
+        return NextResponse.json({ received: true });
+      } catch (error) {
+        console.error('Webhook error:', error);
+        return NextResponse.json(
+          { error: 'Webhook processing failed' },
+          { status: 400 }
+        );
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Design Patterns
+
+### Repository Pattern
+
+We use the Repository Pattern to abstract data access logic and provide a clean interface for working with data sources.
+
+<AccordionGroup>
+  <Accordion title="Key Principles">
+    - **Abstraction**: Provide a clean interface for data access operations
+    - **Encapsulation**: Hide data access implementation details
+    - **Testability**: Allow for easy mocking of data access in tests
+    - **Flexibility**: Switch between different data sources without changing business logic
+  </Accordion>
+  
+  <Accordion title="Implementation (Go)">
+    ```go
+    // Domain interface
+    type UserRepository interface {
+        FindByID(ctx context.Context, id string) (*User, error)
+        FindByEmail(ctx context.Context, email string) (*User, error)
+        Create(ctx context.Context, user *User) error
+        Update(ctx context.Context, user *User) error
+        Delete(ctx context.Context, id string) error
+    }
+    
+    // PostgreSQL implementation
+    type PostgresUserRepository struct {
+        db *sql.DB
+    }
+    
+    func NewPostgresUserRepository(db *sql.DB) *PostgresUserRepository {
+        return &PostgresUserRepository{db: db}
+    }
+    
+    func (r *PostgresUserRepository) FindByID(ctx context.Context, id string) (*User, error) {
+        query := `SELECT id, email, name, created_at, updated_at FROM users WHERE id = $1`
+        
+        var user User
+        err := r.db.QueryRowContext(ctx, query, id).Scan(
+            &user.ID,
+            &user.Email,
+            &user.Name,
+            &user.CreatedAt,
+            &user.UpdatedAt,
+        )
+        
+        if err == sql.ErrNoRows {
+            return nil, ErrUserNotFound
+        }
+        
+        if err != nil {
+            return nil, fmt.Errorf("querying user: %w", err)
+        }
+        
+        return &user, nil
+    }
+    
+    // Additional methods...
+    ```
+  </Accordion>
+  
+  <Accordion title="Implementation (TypeScript)">
+    ```typescript
+    // Domain interface
+    export interface UserRepository {
+      findById(id: string): Promise<User | null>;
+      findByEmail(email: string): Promise<User | null>;
+      create(user: User): Promise<User>;
+      update(user: User): Promise<User>;
+      delete(id: string): Promise<void>;
+    }
+    
+    // Supabase implementation
+    export class SupabaseUserRepository implements UserRepository {
+      constructor(private supabase: SupabaseClient) {}
+      
+      async findById(id: string): Promise<User | null> {
+        const { data, error } = await this.supabase
+          .from('users')
+          .select('*')
+          .eq('id', id)
+          .single();
+          
+        if (error || !data) return null;
+        
+        return this.mapToUser(data);
+      }
+      
+      async findByEmail(email: string): Promise<User | null> {
+        const { data, error } = await this.supabase
+          .from('users')
+          .select('*')
+          .eq('email', email)
+          .single();
+          
+        if (error || !data) return null;
+        
+        return this.mapToUser(data);
+      }
+      
+      async create(user: User): Promise<User> {
+        const { data, error } = await this.supabase
+          .from('users')
+          .insert(this.mapToRecord(user))
+          .select()
+          .single();
+          
+        if (error) throw new Error(`Failed to create user: ${error.message}`);
+        
+        return this.mapToUser(data);
+      }
+      
+      // Additional methods and mapping functions...
+      
+      private mapToUser(record: any): User {
+        return {
+          id: record.id,
+          email: record.email,
+          name: record.name,
+          createdAt: new Date(record.created_at),
+          updatedAt: new Date(record.updated_at)
+        };
+      }
+      
+      private mapToRecord(user: User): any {
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          created_at: user.createdAt.toISOString(),
+          updated_at: user.updatedAt.toISOString()
+        };
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Service Pattern
+
+We use the Service Pattern to encapsulate business logic and operations that span multiple domain entities.
+
+<AccordionGroup>
+  <Accordion title="Key Principles">
+    - **Business Logic Encapsulation**: Centralize business logic in service classes
+    - **Domain Operations**: Implement operations that work across multiple domain entities
+    - **Transaction Management**: Handle database transactions spanning multiple operations
+    - **Dependency Injection**: Accept dependencies via constructor
+  </Accordion>
+  
+  <Accordion title="Implementation (Go)">
+    ```go
+    // Service interface
+    type OrderService interface {
+        PlaceOrder(ctx context.Context, order *Order) error
+        GetOrder(ctx context.Context, id string) (*Order, error)
+        CancelOrder(ctx context.Context, id string) error
+    }
+    
+    // Service implementation
+    type OrderServiceImpl struct {
+        orderRepo      OrderRepository
+        productRepo    ProductRepository
+        customerRepo   CustomerRepository
+        paymentService PaymentService
+        txManager      TransactionManager
+    }
+    
+    func NewOrderService(
+        orderRepo OrderRepository,
+        productRepo ProductRepository,
+        customerRepo CustomerRepository,
+        paymentService PaymentService,
+        txManager TransactionManager,
+    ) *OrderServiceImpl {
+        return &OrderServiceImpl{
+            orderRepo:      orderRepo,
+            productRepo:    productRepo,
+            customerRepo:   customerRepo,
+            paymentService: paymentService,
+            txManager:      txManager,
+        }
+    }
+    
+    func (s *OrderServiceImpl) PlaceOrder(ctx context.Context, order *Order) error {
+        // Start transaction
+        return s.txManager.WithTransaction(ctx, func(ctx context.Context) error {
+            // Validate customer
+            customer, err := s.customerRepo.FindByID(ctx, order.CustomerID)
+            if err != nil {
+                return fmt.Errorf("finding customer: %w", err)
+            }
+            
+            // Validate and update product inventory
+            for _, item := range order.Items {
+                product, err := s.productRepo.FindByID(ctx, item.ProductID)
+                if err != nil {
+                    return fmt.Errorf("finding product %s: %w", item.ProductID, err)
+                }
+                
+                if product.Stock < item.Quantity {
+                    return ErrInsufficientStock
+                }
+                
+                product.Stock -= item.Quantity
+                if err := s.productRepo.Update(ctx, product); err != nil {
+                    return fmt.Errorf("updating product stock: %w", err)
+                }
+            }
+            
+            // Create payment
+            paymentResult, err := s.paymentService.ProcessPayment(ctx, &Payment{
+                Amount:     order.TotalAmount,
+                CustomerID: customer.ID,
+                OrderID:    order.ID,
+            })
+            if err != nil {
+                return fmt.Errorf("processing payment: %w", err)
+            }
+            
+            // Update order with payment info
+            order.PaymentID = paymentResult.ID
+            order.Status = OrderStatusPaid
+            
+            // Save order
+            if err := s.orderRepo.Create(ctx, order); err != nil {
+                return fmt.Errorf("creating order: %w", err)
+            }
+            
+            return nil
+        })
+    }
+    
+    // Additional methods...
+    ```
+  </Accordion>
+  
+  <Accordion title="Implementation (TypeScript)">
+    ```typescript
+    export class OrderService {
+      constructor(
+        private orderRepository: OrderRepository,
+        private productRepository: ProductRepository,
+        private customerRepository: CustomerRepository,
+        private paymentService: PaymentService,
+        private eventBus: EventBus
+      ) {}
+      
+      async placeOrder(order: Order): Promise<Order> {
+        // Validate customer
+        const customer = await this.customerRepository.findById(order.customerId);
+        if (!customer) {
+          throw new Error(`Customer ${order.customerId} not found`);
+        }
+        
+        // Validate products and calculate total
+        let totalAmount = 0;
+        for (const item of order.items) {
+          const product = await this.productRepository.findById(item.productId);
+          if (!product) {
+            throw new Error(`Product ${item.productId} not found`);
+          }
+          
+          if (product.stock < item.quantity) {
+            throw new Error(`Insufficient stock for product ${product.name}`);
+          }
+          
+          totalAmount += product.price * item.quantity;
+          
+          // Update product stock
+          await this.productRepository.update({
+            ...product,
+            stock: product.stock - item.quantity
+          });
+        }
+        
+        // Set order properties
+        order.totalAmount = totalAmount;
+        order.status = 'pending';
+        order.createdAt = new Date();
+        order.updatedAt = new Date();
+        
+        // Save order
+        const savedOrder = await this.orderRepository.create(order);
+        
+        // Process payment
+        const paymentResult = await this.paymentService.processPayment({
+          amount: totalAmount,
+          customerId: customer.id,
+          orderId: savedOrder.id
+        });
+        
+        // Update order with payment info
+        const updatedOrder = await this.orderRepository.update({
+          ...savedOrder,
+          paymentId: paymentResult.id,
+          status: 'paid',
+          updatedAt: new Date()
+        });
+        
+        // Publish order placed event
+        await this.eventBus.publish('order.placed', {
+          orderId: updatedOrder.id,
+          customerId: updatedOrder.customerId,
+          amount: updatedOrder.totalAmount,
+          timestamp: new Date()
+        });
+        
+        return updatedOrder;
+      }
+      
+      // Additional methods...
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Factory Pattern
+
+We use the Factory Pattern to create complex objects or dependencies with proper encapsulation.
+
+<AccordionGroup>
+  <Accordion title="Key Principles">
+    - **Encapsulation**: Hide creation logic to manage complexity
+    - **Single Responsibility**: Separate object creation from business logic
+    - **Dependency Management**: Simplify creating objects with multiple dependencies
+  </Accordion>
+  
+  <Accordion title="Implementation (Go)">
+    ```go
+    // Factory for creating services
+    type ServiceFactory struct {
+        db         *sql.DB
+        config     *Config
+        httpClient *http.Client
+    }
+    
+    func NewServiceFactory(db *sql.DB, config *Config) *ServiceFactory {
+        httpClient := &http.Client{
+            Timeout: 10 * time.Second,
+            Transport: &http.Transport{
+                MaxIdleConns:        10,
+                MaxIdleConnsPerHost: 10,
+                IdleConnTimeout:     30 * time.Second,
+            },
+        }
+        
+        return &ServiceFactory{
+            db:         db,
+            config:     config,
+            httpClient: httpClient,
+        }
+    }
+    
+    func (f *ServiceFactory) CreateUserService() *UserService {
+        userRepo := repository.NewUserRepository(f.db)
+        return service.NewUserService(userRepo)
+    }
+    
+    func (f *ServiceFactory) CreateOrderService() *OrderService {
+        orderRepo := repository.NewOrderRepository(f.db)
+        productRepo := repository.NewProductRepository(f.db)
+        customerRepo := repository.NewCustomerRepository(f.db)
+        paymentService := payment.NewPaymentService(f.httpClient, f.config.PaymentAPIKey)
+        txManager := transaction.NewTransactionManager(f.db)
+        
+        return service.NewOrderService(
+            orderRepo,
+            productRepo,
+            customerRepo,
+            paymentService,
+            txManager,
+        )
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Implementation (TypeScript)">
+    ```typescript
+    export class ServiceFactory {
+      constructor(
+        private supabase: SupabaseClient,
+        private config: AppConfig
+      ) {}
+      
+      createUserService(): UserService {
+        const userRepository = new SupabaseUserRepository(this.supabase);
+        return new UserService(userRepository);
+      }
+      
+      createOrderService(): OrderService {
+        const orderRepository = new SupabaseOrderRepository(this.supabase);
+        const productRepository = new SupabaseProductRepository(this.supabase);
+        const customerRepository = new SupabaseCustomerRepository(this.supabase);
+        const paymentService = new StripePaymentService(this.config.stripeApiKey);
+        const eventBus = new SupabaseRealtimeEventBus(this.supabase);
+        
+        return new OrderService(
+          orderRepository,
+          productRepository,
+          customerRepository,
+          paymentService,
+          eventBus
+        );
+      }
+      
+      createAuthService(): AuthService {
+        const userRepository = new SupabaseUserRepository(this.supabase);
+        const tokenService = new JWTTokenService(this.config.jwtSecret);
+        
+        return new AuthService(
+          userRepository,
+          tokenService,
+          this.config.authSettings
+        );
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Strategy Pattern
+
+We use the Strategy Pattern to define a family of interchangeable algorithms that can be selected at runtime.
+
+<AccordionGroup>
+  <Accordion title="Key Principles">
+    - **Interchangeability**: Define multiple algorithms that can be used interchangeably
+    - **Runtime Selection**: Select the appropriate algorithm at runtime
+    - **Interface Adherence**: All strategies implement the same interface
+  </Accordion>
+  
+  <Accordion title="Implementation (Go)">
+    ```go
+    // Payment processor strategy interface
+    type PaymentProcessor interface {
+        ProcessPayment(ctx context.Context, payment *Payment) (*PaymentResult, error)
+        SupportedPaymentMethods() []string
+    }
+    
+    // Strategy implementations
+    type StripePaymentProcessor struct {
+        apiKey string
+        client *http.Client
+    }
+    
+    func (p *StripePaymentProcessor) ProcessPayment(ctx context.Context, payment *Payment) (*PaymentResult, error) {
+        // Stripe payment implementation
+        // ...
+        return &PaymentResult{
+            ID:        "stripe_payment_id",
+            Status:    "succeeded",
+            Amount:    payment.Amount,
+            Timestamp: time.Now(),
+        }, nil
+    }
+    
+    func (p *StripePaymentProcessor) SupportedPaymentMethods() []string {
+        return []string{"credit_card", "debit_card"}
+    }
+    
+    type PayPalPaymentProcessor struct {
+        clientID     string
+        clientSecret string
+        client       *http.Client
+    }
+    
+    func (p *PayPalPaymentProcessor) ProcessPayment(ctx context.Context, payment *Payment) (*PaymentResult, error) {
+        // PayPal payment implementation
+        // ...
+        return &PaymentResult{
+            ID:        "paypal_payment_id",
+            Status:    "completed",
+            Amount:    payment.Amount,
+            Timestamp: time.Now(),
+        }, nil
+    }
+    
+    func (p *PayPalPaymentProcessor) SupportedPaymentMethods() []string {
+        return []string{"paypal"}
+    }
+    
+    // Strategy selector
+    type PaymentService struct {
+        processors map[string]PaymentProcessor
+    }
+    
+    func NewPaymentService(processors ...PaymentProcessor) *PaymentService {
+        processorMap := make(map[string]PaymentProcessor)
+        
+        for _, processor := range processors {
+            for _, method := range processor.SupportedPaymentMethods() {
+                processorMap[method] = processor
+            }
+        }
+        
+        return &PaymentService{
+            processors: processorMap,
+        }
+    }
+    
+    func (s *PaymentService) ProcessPayment(ctx context.Context, payment *Payment) (*PaymentResult, error) {
+        processor, ok := s.processors[payment.Method]
+        if !ok {
+            return nil, fmt.Errorf("unsupported payment method: %s", payment.Method)
+        }
+        
+        return processor.ProcessPayment(ctx, payment)
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Implementation (TypeScript)">
+    ```typescript
+    // Payment processor strategy interface
+    export interface PaymentProcessor {
+      processPayment(payment: Payment): Promise<PaymentResult>;
+      getSupportedPaymentMethods(): string[];
+    }
+    
+    // Strategy implementations
+    export class StripePaymentProcessor implements PaymentProcessor {
+      constructor(private apiKey: string) {}
+      
+      async processPayment(payment: Payment): Promise<PaymentResult> {
+        // Stripe payment implementation
+        // ...
+        return {
+          id: 'stripe_payment_id',
+          status: 'succeeded',
+          amount: payment.amount,
+          timestamp: new Date()
+        };
+      }
+      
+      getSupportedPaymentMethods(): string[] {
+        return ['credit_card', 'debit_card'];
+      }
+    }
+    
+    export class PayPalPaymentProcessor implements PaymentProcessor {
+      constructor(
+        private clientId: string,
+        private clientSecret: string
+      ) {}
+      
+      async processPayment(payment: Payment): Promise<PaymentResult> {
+        // PayPal payment implementation
+        // ...
+        return {
+          id: 'paypal_payment_id',
+          status: 'completed',
+          amount: payment.amount,
+          timestamp: new Date()
+        };
+      }
+      
+      getSupportedPaymentMethods(): string[] {
+        return ['paypal'];
+      }
+    }
+    
+    // Strategy selector
+    export class PaymentService {
+      private processors: Map<string, PaymentProcessor> = new Map();
+      
+      constructor(processors: PaymentProcessor[]) {
+        // Register processors by supported payment methods
+        for (const processor of processors) {
+          for (const method of processor.getSupportedPaymentMethods()) {
+            this.processors.set(method, processor);
+          }
+        }
+      }
+      
+      async processPayment(payment: Payment): Promise<PaymentResult> {
+        const processor = this.processors.get(payment.method);
+        
+        if (!processor) {
+          throw new Error(`Unsupported payment method: ${payment.method}`);
+        }
+        
+        return processor.processPayment(payment);
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Observer Pattern
+
+We use the Observer Pattern to implement event-driven architectures, particularly for real-time features and notifications.
+
+<AccordionGroup>
+  <Accordion title="Key Principles">
+    - **Event Publishing**: Components can publish events without knowing who's listening
+    - **Event Subscription**: Components can subscribe to events without knowing the publisher
+    - **Loose Coupling**: Publishers and subscribers are decoupled
+  </Accordion>
+  
+  <Accordion title="Implementation (Go)">
+    ```go
+    // Event type definition
+    type Event struct {
+        Type    string
+        Payload interface{}
+    }
+    
+    // Event handler function type
+    type EventHandler func(event Event)
+    
+    // Event bus
+    type EventBus struct {
+        subscribers map[string][]EventHandler
+        mu          sync.RWMutex
+    }
+    
+    func NewEventBus() *EventBus {
+        return &EventBus{
+            subscribers: make(map[string][]EventHandler),
+        }
+    }
+    
+    // Subscribe to events
+    func (b *EventBus) Subscribe(eventType string, handler EventHandler) {
+        b.mu.Lock()
+        defer b.mu.Unlock()
+        
+        b.subscribers[eventType] = append(b.subscribers[eventType], handler)
+    }
+    
+    // Publish an event
+    func (b *EventBus) Publish(event Event) {
+        b.mu.RLock()
+        defer b.mu.RUnlock()
+        
+        for _, handler := range b.subscribers[event.Type] {
+            // Execute handlers in separate goroutines
+            go handler(event)
+        }
+    }
+    
+    // Example usage
+    func main() {
+        eventBus := NewEventBus()
+        
+        // Subscribe to order created events
+        eventBus.Subscribe("order.created", func(event Event) {
+            order := event.Payload.(Order)
+            fmt.Printf("Order %s was created for customer %s\n", order.ID, order.CustomerID)
+            
+            // Send email notification
+            // ...
+        })
+        
+        // Subscribe to order status change events
+        eventBus.Subscribe("order.status_changed", func(event Event) {
+            payload := event.Payload.(OrderStatusChanged)
+            fmt.Printf("Order %s status changed to %s\n", payload.OrderID, payload.NewStatus)
+            
+            // Update dashboards
+            // ...
+        })
+        
+        // Publish an event
+        eventBus.Publish(Event{
+            Type: "order.created",
+            Payload: Order{
+                ID:         "order123",
+                CustomerID: "customer456",
+                TotalAmount: 99.99,
+                Status:     "pending",
+            },
+        })
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Implementation (TypeScript)">
+    ```typescript
+    // Event types
+    type EventType = string;
+    
+    interface Event<T = any> {
+      type: EventType;
+      payload: T;
+    }
+    
+    type EventHandler<T = any> = (event: Event<T>) => void | Promise<void>;
+    
+    // Event bus
+    class EventBus {
+      private subscribers: Map<EventType, Set<EventHandler>> = new Map();
+      
+      subscribe<T>(eventType: EventType, handler: EventHandler<T>): () => void {
+        if (!this.subscribers.has(eventType)) {
+          this.subscribers.set(eventType, new Set());
+        }
+        
+        this.subscribers.get(eventType)!.add(handler);
+        
+        // Return unsubscribe function
+        return () => {
+          const handlers = this.subscribers.get(eventType);
+          if (handlers) {
+            handlers.delete(handler);
+            if (handlers.size === 0) {
+              this.subscribers.delete(eventType);
+            }
+          }
+        };
+      }
+      
+      async publish<T>(event: Event<T>): Promise<void> {
+        const handlers = this.subscribers.get(event.type);
+        
+        if (!handlers) return;
+        
+        // Execute all handlers
+        const promises = Array.from(handlers).map(handler => {
+          try {
+            return Promise.resolve(handler(event));
+          } catch (error) {
+            return Promise.reject(error);
+          }
+        });
+        
+        await Promise.allSettled(promises);
+      }
+    }
+    
+    // Example usage
+    interface Order {
+      id: string;
+      customerId: string;
+      totalAmount: number;
+      status: string;
+    }
+    
+    interface OrderStatusChanged {
+      orderId: string;
+      oldStatus: string;
+      newStatus: string;
+    }
+    
+    const eventBus = new EventBus();
+    
+    // Subscribe to events
+    eventBus.subscribe<Order>('order.created', async (event) => {
+      const order = event.payload;
+      console.log(`Order ${order.id} was created for customer ${order.customerId}`);
+      
+      // Send email notification
+      await sendOrderConfirmationEmail(order);
+    });
+    
+    eventBus.subscribe<OrderStatusChanged>('order.status_changed', async (event) => {
+      const { orderId, oldStatus, newStatus } = event.payload;
+      console.log(`Order ${orderId} status changed from ${oldStatus} to ${newStatus}`);
+      
+      // Update dashboards
+      await updateOrderDashboard(orderId, newStatus);
+    });
+    
+    // Publish an event
+    eventBus.publish({
+      type: 'order.created',
+      payload: {
+        id: 'order123',
+        customerId: 'customer456',
+        totalAmount: 99.99,
+        status: 'pending'
+      }
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Frontend-Specific Patterns
+
+### Component Composition
+
+In React applications, we use component composition to build complex UIs from simpler, reusable components.
+
+<AccordionGroup>
+  <Accordion title="Key Principles">
+    - **Single Responsibility**: Each component should do one thing well
+    - **Composability**: Components can be composed together to build complex UIs
+    - **Reusability**: Components should be designed for reuse
+    - **Prop Drilling Avoidance**: Use composition to avoid excessive prop drilling
+  </Accordion>
+  
+  <Accordion title="Implementation Example">
+    ```tsx
+    // Atomic components
+    function Button({ variant = 'primary', children, ...props }) {
+      return (
+        <button 
+          className={`btn btn-${variant}`} 
+          {...props}
+        >
+          {children}
+        </button>
+      );
+    }
+    
+    function Card({ title, children }) {
+      return (
+        <div className="card">
+          {title && <div className="card-header">{title}</div>}
+          <div className="card-body">{children}</div>
+        </div>
+      );
+    }
+    
+    // Composed components
+    function ProductCard({ product, onAddToCart }) {
+      return (
+        <Card title={product.name}>
+          <div className="product-price">${product.price.toFixed(2)}</div>
+          <p>{product.description}</p>
+          <Button onClick={() => onAddToCart(product)}>
+            Add to Cart
+          </Button>
+        </Card>
+      );
+    }
+    
+    function ProductGrid({ products, onAddToCart }) {
+      return (
+        <div className="product-grid">
+          {products.map(product => (
+            <ProductCard 
+              key={product.id} 
+              product={product} 
+              onAddToCart={onAddToCart} 
+            />
+          ))}
+        </div>
+      );
+    }
+    
+    // Page component
+    function ProductsPage() {
+      const [products, setProducts] = useState([]);
+      const [cart, setCart] = useState([]);
+      
+      useEffect(() => {
+        // Fetch products
+        fetchProducts().then(data => setProducts(data));
+      }, []);
+      
+      const handleAddToCart = (product) => {
+        setCart(prevCart => [...prevCart, product]);
+      };
+      
+      return (
+        <div className="products-page">
+          <h1>Products</h1>
+          <ProductGrid 
+            products={products} 
+            onAddToCart={handleAddToCart} 
+          />
+        </div>
+      );
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Hooks Pattern
+
+In React applications, we use the Hooks Pattern to extract and reuse stateful logic across components.
+
+<AccordionGroup>
+  <Accordion title="Key Principles">
+    - **Logic Reuse**: Extract and reuse stateful logic across components
+    - **State Encapsulation**: Encapsulate related state and effects
+    - **Separation of Concerns**: Separate UI from business logic
+    - **Composability**: Hooks can compose other hooks
+  </Accordion>
+  
+  <Accordion title="Implementation Example">
+    ```tsx
+    // Basic hook for API data fetching
+    function useApi<T>(url: string, options?: RequestInit) {
+      const [data, setData] = useState<T | null>(null);
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState<Error | null>(null);
+      
+      useEffect(() => {
+        let isMounted = true;
+        
+        const fetchData = async () => {
+          try {
+            setLoading(true);
+            const response = await fetch(url, options);
+            
+            if (!response.ok) {
+              throw new Error(`API error: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (isMounted) {
+              setData(result);
+              setError(null);
+            }
+          } catch (err) {
+            if (isMounted) {
+              setError(err instanceof Error ? err : new Error(String(err)));
+              setData(null);
+            }
+          } finally {
+            if (isMounted) {
+              setLoading(false);
+            }
+          }
+        };
+        
+        fetchData();
+        
+        return () => {
+          isMounted = false;
+        };
+      }, [url, JSON.stringify(options)]);
+      
+      return { data, loading, error };
+    }
+    
+    // Compose hooks for specific domains
+    function useUser(userId: string) {
+      const { data, loading, error } = useApi<User>(`/api/users/${userId}`);
+      
+      return {
+        user: data,
+        loading,
+        error,
+      };
+    }
+    
+    function useCart() {
+      const [cart, setCart] = useState<CartItem[]>([]);
+      
+      const addToCart = useCallback((product: Product, quantity = 1) => {
+        setCart(prevCart => {
+          const existingItem = prevCart.find(item => item.productId === product.id);
+          
+          if (existingItem) {
+            // Update quantity if item exists
+            return prevCart.map(item => 
+              item.productId === product.id
+                ? { ...item, quantity: item.quantity + quantity }
+                : item
+            );
+          } else {
+            // Add new item
+            return [...prevCart, {
+              id: crypto.randomUUID(),
+              productId: product.id,
+              name: product.name,
+              price: product.price,
+              quantity
+            }];
+          }
+        });
+      }, []);
+      
+      const removeFromCart = useCallback((itemId: string) => {
+        setCart(prevCart => prevCart.filter(item => item.id !== itemId));
+      }, []);
+      
+      const clearCart = useCallback(() => {
+        setCart([]);
+      }, []);
+      
+      const totalItems = useMemo(() => {
+        return cart.reduce((sum, item) => sum + item.quantity, 0);
+      }, [cart]);
+      
+      const totalPrice = useMemo(() => {
+        return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      }, [cart]);
+      
+      return {
+        cart,
+        addToCart,
+        removeFromCart,
+        clearCart,
+        totalItems,
+        totalPrice
+      };
+    }
+    
+    // Component using the hooks
+    function ProductDetail({ productId }) {
+      const { data: product, loading, error } = useApi<Product>(`/api/products/${productId}`);
+      const { addToCart } = useCart();
+      
+      if (loading) return <div>Loading...</div>;
+      if (error) return <div>Error: {error.message}</div>;
+      if (!product) return <div>Product not found</div>;
+      
+      return (
+        <div className="product-detail">
+          <h1>{product.name}</h1>
+          <div className="price">${product.price.toFixed(2)}</div>
+          <p>{product.description}</p>
+          <Button onClick={() => addToCart(product)}>Add to Cart</Button>
+        </div>
+      );
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Design Pattern Selection Guide
+
+When selecting a design pattern for a particular problem, consider the following factors:
+
+<AccordionGroup>
+  <Accordion title="Problem Type">
+    - **Object Creation**: Consider Factory, Builder, or Singleton patterns
+    - **Structural Relationships**: Consider Adapter, Decorator, or Composite patterns
+    - **Behavioral Logic**: Consider Strategy, Observer, or Command patterns
+    - **Data Access**: Consider Repository or Data Mapper patterns
+    - **Cross-Cutting Concerns**: Consider Middleware, Aspect-Oriented, or Proxy patterns
+  </Accordion>
+  
+  <Accordion title="Flexibility Requirements">
+    - **High Flexibility**: Favor patterns that allow for runtime behavior changes
+    - **Stability**: Favor patterns that enforce consistency and predictability
+  </Accordion>
+  
+  <Accordion title="Performance Considerations">
+    - **High Performance**: Consider patterns with minimal overhead
+    - **Memory Efficiency**: Consider flyweight or pooling patterns
+    - **Concurrency**: Consider patterns that handle concurrent access safely
+  </Accordion>
+  
+  <Accordion title="Maintainability">
+    - **Readability**: Favor patterns that are widely understood
+    - **Testability**: Favor patterns that allow for easy testing
+    - **Extensibility**: Favor patterns that allow for future extensions
+  </Accordion>
+</AccordionGroup>
+
+## Anti-Patterns to Avoid
+
+<AccordionGroup>
+  <Accordion title="God Object">
+    **Problem**: Creating objects that know or do too much, violating the Single Responsibility Principle.
+    
+    **Better Approach**: Break down large objects into smaller, focused components with clear responsibilities.
+  </Accordion>
+  
+  <Accordion title="Callback Hell">
+    **Problem**: Deeply nested callbacks making code hard to read and maintain.
+    
+    **Better Approach**: Use async/await pattern, Promises, or reactive programming techniques.
+  </Accordion>
+  
+  <Accordion title="Premature Optimization">
+    **Problem**: Optimizing code before understanding performance bottlenecks.
+    
+    **Better Approach**: Write clear code first, then profile and optimize based on actual performance data.
+  </Accordion>
+  
+  <Accordion title="Spaghetti Code">
+    **Problem**: Code with complex, tangled control flow and poor organization.
+    
+    **Better Approach**: Use clear architectural boundaries, patterns, and modular design.
+  </Accordion>
+  
+  <Accordion title="Magic Numbers/Strings">
+    **Problem**: Using unexplained constants throughout the code.
+    
+    **Better Approach**: Define named constants with clear meanings in a centralized location.
+  </Accordion>
+</AccordionGroup>
+
+## Resources
+
+- [Refactoring Guru - Design Patterns](https://refactoring.guru/design-patterns)
+- [Martin Fowler - Patterns of Enterprise Application Architecture](https://martinfowler.com/books/eaa.html)
+- [Clean Architecture by Robert C. Martin](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
+- [React Patterns](https://reactpatterns.com/)
+- [Go Patterns](https://github.com/tmrts/go-patterns)

@@ -1,0 +1,738 @@
+---
+title: Database Migrations
+description: Guidelines and processes for managing database schema changes and migrations
+icon: database-export
+---
+
+# Database Migrations
+
+This document outlines our approach to database migrations - the process of evolving our database schema over time to support new features while maintaining backward compatibility.
+
+<Frame>
+  <img src="/images/database-migration-process.png" alt="Database Migration Process" className="rounded-lg" />
+</Frame>
+
+## Migration Philosophy
+
+Our approach to database migrations is guided by the following principles:
+
+1. **Safety First** - Migrations should be safe and reversible when possible
+2. **Backward Compatibility** - Maintain compatibility with existing code during transition periods
+3. **Zero Downtime** - Migrations should not require application downtime
+4. **Testability** - Migrations must be testable before being applied to production
+5. **Version Control** - All migrations should be tracked in version control
+
+## Migration Types
+
+We categorize migrations into several types:
+
+<CardGroup cols={2}>
+  <Card title="Schema Changes" icon="table">
+    Adding, modifying, or removing database objects (tables, columns, indexes)
+  </Card>
+  
+  <Card title="Data Migrations" icon="database">
+    Moving or transforming data between tables or columns
+  </Card>
+  
+  <Card title="Constraint Changes" icon="link">
+    Adding, modifying, or removing constraints (primary keys, foreign keys, checks)
+  </Card>
+  
+  <Card title="Permission Changes" icon="lock">
+    Modifying access controls and RLS policies
+  </Card>
+</CardGroup>
+
+## Migration Tools
+
+We use the following tools for database migrations:
+
+<AccordionGroup>
+  <Accordion title="SQL Migration Files">
+    Plain SQL files with sequential numbering:
+    
+    ```
+    migrations/
+    ├── 00001_create_users_table.sql
+    ├── 00002_add_profiles_table.sql
+    ├── 00003_add_email_index.sql
+    └── ...
+    ```
+    
+    Each file contains forward migrations (changes to apply) and sometimes rollback statements (how to undo changes).
+  </Accordion>
+  
+  <Accordion title="golang-migrate">
+    Command-line tool for applying migrations:
+    
+    ```bash
+    # Install
+    go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+    
+    # Apply migrations
+    migrate -path ./migrations -database "postgres://user:password@localhost:5432/database?sslmode=disable" up
+    
+    # Rollback last migration
+    migrate -path ./migrations -database "postgres://user:password@localhost:5432/database?sslmode=disable" down 1
+    ```
+  </Accordion>
+  
+  <Accordion title="Supabase CLI">
+    Command-line tool for Supabase projects:
+    
+    ```bash
+    # Install
+    npm install -g supabase
+    
+    # Push migrations to Supabase
+    supabase db push
+    
+    # Pull database changes as migrations
+    supabase db pull
+    ```
+  </Accordion>
+  
+  <Accordion title="Custom Migration Script">
+    Our custom Node.js script for more complex migrations:
+    
+    ```bash
+    # Run the migration script
+    npm run migrate
+    ```
+    
+    This script handles both schema changes and data migrations with proper error handling and logging.
+  </Accordion>
+</AccordionGroup>
+
+## Migration Workflow
+
+Our database migration workflow follows these steps:
+
+<Steps>
+  <Step title="Create a feature branch">
+    Create a branch for your changes:
+    ```bash
+    git checkout -b feature/add-customer-notes
+    ```
+  </Step>
+  
+  <Step title="Create migration files">
+    Create sequentially numbered migration files:
+    ```bash
+    # Generate a new migration file
+    npm run migrate:create add_customer_notes
+    
+    # This creates:
+    # migrations/00123_add_customer_notes.sql
+    ```
+  </Step>
+  
+  <Step title="Write migration SQL">
+    Edit the migration file with your changes:
+    ```sql
+    -- migrations/00123_add_customer_notes.sql
+    
+    -- Up Migration
+    CREATE TABLE public.customer_notes (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      customer_id UUID NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
+      created_by UUID NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
+      content TEXT NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    
+    -- Create index for efficient lookups
+    CREATE INDEX idx_customer_notes_customer_id ON public.customer_notes (customer_id);
+    
+    -- Add RLS policies
+    ALTER TABLE public.customer_notes ENABLE ROW LEVEL SECURITY;
+    
+    -- Everyone can read notes
+    CREATE POLICY "Anyone can read customer notes"
+      ON public.customer_notes
+      FOR SELECT
+      USING (true);
+    
+    -- Only note creator or admins can update notes
+    CREATE POLICY "Note creators and admins can update notes"
+      ON public.customer_notes
+      FOR UPDATE
+      USING (
+        auth.uid() = created_by OR
+        EXISTS (
+          SELECT 1 FROM public.user_roles
+          WHERE user_id = auth.uid() AND role = 'admin'
+        )
+      );
+    
+    -- Only note creator or admins can delete notes
+    CREATE POLICY "Note creators and admins can delete notes"
+      ON public.customer_notes
+      FOR DELETE
+      USING (
+        auth.uid() = created_by OR
+        EXISTS (
+          SELECT 1 FROM public.user_roles
+          WHERE user_id = auth.uid() AND role = 'admin'
+        )
+      );
+    
+    -- Down Migration (rollback)
+    -- DROP TABLE public.customer_notes;
+    ```
+  </Step>
+  
+  <Step title="Test locally">
+    Apply the migration to your local development database:
+    ```bash
+    npm run migrate:up
+    ```
+    
+    Verify the changes work as expected with your application code.
+  </Step>
+  
+  <Step title="Commit and push">
+    ```bash
+    git add migrations/00123_add_customer_notes.sql
+    git commit -m "Add customer notes table"
+    git push origin feature/add-customer-notes
+    ```
+  </Step>
+  
+  <Step title="Create pull request">
+    Create a pull request and request code review.
+  </Step>
+  
+  <Step title="Deploy to staging">
+    Once approved, deploy to staging environment:
+    ```bash
+    # This is typically handled by CI/CD
+    npm run migrate:up:staging
+    ```
+  </Step>
+  
+  <Step title="Deploy to production">
+    After testing in staging, deploy to production:
+    ```bash
+    # This is typically handled by CI/CD
+    npm run migrate:up:production
+    ```
+  </Step>
+</Steps>
+
+## Migration Best Practices
+
+### Safe Migration Patterns
+
+<AccordionGroup>
+  <Accordion title="Adding Tables">
+    Adding new tables is generally safe:
+    
+    ```sql
+    -- Safe: Adding a new table
+    CREATE TABLE public.new_table (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    ```
+  </Accordion>
+  
+  <Accordion title="Adding Columns">
+    When adding columns, make them nullable first:
+    
+    ```sql
+    -- Safe: Adding a nullable column
+    ALTER TABLE public.existing_table
+    ADD COLUMN new_column TEXT;
+    
+    -- Then fill with data (if necessary)
+    UPDATE public.existing_table
+    SET new_column = 'default value';
+    
+    -- Finally add constraints (if needed)
+    ALTER TABLE public.existing_table
+    ALTER COLUMN new_column SET NOT NULL;
+    ```
+  </Accordion>
+  
+  <Accordion title="Removing Columns (Two-Phase)">
+    Removing columns should be done in two phases:
+    
+    ```sql
+    -- Phase 1: Stop using the column in code, then make it nullable
+    ALTER TABLE public.existing_table
+    ALTER COLUMN old_column DROP NOT NULL;
+    
+    -- Phase 2: Later migration after deployment
+    ALTER TABLE public.existing_table
+    DROP COLUMN old_column;
+    ```
+  </Accordion>
+  
+  <Accordion title="Renaming Columns (Three-Phase)">
+    Renaming columns should be done in three phases:
+    
+    ```sql
+    -- Phase 1: Add new column
+    ALTER TABLE public.users
+    ADD COLUMN first_name TEXT;
+    
+    -- Copy data
+    UPDATE public.users
+    SET first_name = name;
+    
+    -- Phase 2: Update code to use both columns
+    -- Deploy code that writes to both columns
+    
+    -- Phase 3: After all code is using new column
+    ALTER TABLE public.users
+    DROP COLUMN name;
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Dangerous Migration Patterns to Avoid
+
+<AccordionGroup>
+  <Accordion title="Renaming Tables">
+    Direct table renaming breaks existing code:
+    
+    ```sql
+    -- Dangerous: Renaming tables directly
+    ALTER TABLE public.old_table_name
+    RENAME TO new_table_name;
+    ```
+    
+    Instead, create a view with the old name:
+    
+    ```sql
+    -- Better approach
+    CREATE VIEW public.old_table_name AS
+    SELECT * FROM public.new_table_name;
+    ```
+  </Accordion>
+  
+  <Accordion title="Changing Column Types">
+    Changing column types can be risky:
+    
+    ```sql
+    -- Dangerous: Changing column type directly
+    ALTER TABLE public.users
+    ALTER COLUMN id TYPE INT;
+    ```
+    
+    Instead, create a new column and migrate data:
+    
+    ```sql
+    -- Better approach
+    ALTER TABLE public.users
+    ADD COLUMN id_int INT;
+    
+    UPDATE public.users
+    SET id_int = id::INT;
+    ```
+  </Accordion>
+  
+  <Accordion title="Adding NOT NULL Without Defaults">
+    ```sql
+    -- Dangerous: Adding NOT NULL to existing column
+    ALTER TABLE public.users
+    ALTER COLUMN email SET NOT NULL;
+    ```
+    
+    Instead, set defaults first:
+    
+    ```sql
+    -- Better approach
+    UPDATE public.users
+    SET email = 'unknown@example.com'
+    WHERE email IS NULL;
+    
+    ALTER TABLE public.users
+    ALTER COLUMN email SET NOT NULL;
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Complex Migration Scenarios
+
+### Large Data Migrations
+
+When migrating large amounts of data:
+
+<Steps>
+  <Step title="Create temporary copying function">
+    ```sql
+    CREATE OR REPLACE FUNCTION migrate_large_data() RETURNS void AS $$
+    DECLARE
+      batch_size INT := 1000;
+      total_rows INT;
+      processed_rows INT := 0;
+    BEGIN
+      -- Get total count
+      SELECT COUNT(*) INTO total_rows FROM source_table;
+      
+      WHILE processed_rows < total_rows LOOP
+        -- Process batch
+        INSERT INTO target_table (id, name, value)
+        SELECT id, name, transformed_value(value)
+        FROM source_table
+        ORDER BY id
+        LIMIT batch_size
+        OFFSET processed_rows;
+        
+        -- Update counter
+        processed_rows := processed_rows + batch_size;
+        
+        -- Log progress
+        RAISE NOTICE 'Processed % of % rows', 
+          LEAST(processed_rows, total_rows), total_rows;
+        
+        -- Commit batch and slight pause to reduce load
+        COMMIT;
+        PERFORM pg_sleep(0.1);
+      END LOOP;
+    END;
+    $$ LANGUAGE plpgsql;
+    ```
+  </Step>
+  
+  <Step title="Execute function">
+    ```sql
+    SELECT migrate_large_data();
+    ```
+  </Step>
+  
+  <Step title="Clean up">
+    ```sql
+    DROP FUNCTION migrate_large_data();
+    ```
+  </Step>
+</Steps>
+
+### Splitting Tables
+
+When splitting a table into multiple tables:
+
+<Steps>
+  <Step title="Create new tables">
+    ```sql
+    -- Create new tables
+    CREATE TABLE public.orders (
+      id UUID PRIMARY KEY,
+      customer_id UUID NOT NULL,
+      total_amount DECIMAL(10, 2) NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE NOT NULL
+      -- Other order fields
+    );
+    
+    CREATE TABLE public.order_items (
+      id UUID PRIMARY KEY,
+      order_id UUID NOT NULL REFERENCES public.orders(id),
+      product_id UUID NOT NULL,
+      quantity INT NOT NULL,
+      unit_price DECIMAL(10, 2) NOT NULL
+      -- Other item fields
+    );
+    ```
+  </Step>
+  
+  <Step title="Migrate data">
+    ```sql
+    -- Migrate order data
+    INSERT INTO public.orders (
+      id, customer_id, total_amount, created_at
+    )
+    SELECT 
+      id, customer_id, total_amount, created_at
+    FROM public.original_orders;
+    
+    -- Migrate item data
+    INSERT INTO public.order_items (
+      id, order_id, product_id, quantity, unit_price
+    )
+    SELECT 
+      gen_random_uuid(), id, product_id, quantity, unit_price
+    FROM public.original_orders;
+    ```
+  </Step>
+  
+  <Step title="Create view for backward compatibility">
+    ```sql
+    CREATE VIEW public.original_orders AS
+    SELECT 
+      o.id, o.customer_id, o.total_amount, o.created_at,
+      i.product_id, i.quantity, i.unit_price
+    FROM 
+      public.orders o
+    JOIN 
+      public.order_items i ON o.id = i.order_id;
+    ```
+  </Step>
+  
+  <Step title="Drop original table (after code migration)">
+    ```sql
+    -- This would be done in a later migration after code is updated
+    DROP TABLE public.original_orders;
+    ```
+  </Step>
+</Steps>
+
+## Managing RLS Policies in Migrations
+
+Row-Level Security (RLS) policies should be managed in migrations:
+
+```sql
+-- Enable RLS on a table
+ALTER TABLE public.documents ENABLE ROW LEVEL SECURITY;
+
+-- Create a policy
+CREATE POLICY "Users can view their own documents"
+  ON public.documents
+  FOR SELECT
+  USING (auth.uid() = owner_id);
+
+-- Update a policy
+ALTER POLICY "Users can view their own documents"
+  ON public.documents
+  USING (auth.uid() = owner_id OR is_public = true);
+
+-- Drop a policy
+DROP POLICY "Users can view their own documents"
+  ON public.documents;
+```
+
+## Handling Rollbacks
+
+Sometimes migrations need to be rolled back. Here's how we handle rollbacks:
+
+<Steps>
+  <Step title="Include rollback statements">
+    Include commented rollback statements in each migration:
+    ```sql
+    -- Up migration
+    CREATE TABLE public.new_table (...);
+    
+    -- Down migration (commented)
+    -- DROP TABLE public.new_table;
+    ```
+  </Step>
+  
+  <Step title="Create rollback migration if needed">
+    If a migration needs to be rolled back in production, create a new migration:
+    ```sql
+    -- migrations/00124_rollback_new_table.sql
+    DROP TABLE public.new_table;
+    ```
+  </Step>
+  
+  <Step title="Test rollback locally">
+    ```bash
+    # Roll back one migration
+    migrate -path ./migrations -database "postgres://..." down 1
+    
+    # Or execute rollback migration
+    npm run migrate:up
+    ```
+  </Step>
+  
+  <Step title="Apply rollback in production">
+    ```bash
+    # This is typically handled by CI/CD
+    npm run migrate:up:production
+    ```
+  </Step>
+</Steps>
+
+## Testing Migrations
+
+We test migrations before deploying them to production:
+
+<AccordionGroup>
+  <Accordion title="Local Testing">
+    Test migrations locally:
+    
+    ```bash
+    # Reset local database to a known state
+    npm run db:reset
+    
+    # Apply migrations
+    npm run migrate:up
+    
+    # Run application tests
+    npm test
+    ```
+  </Accordion>
+  
+  <Accordion title="CI Testing">
+    Test migrations in CI:
+    
+    ```yaml
+    # .github/workflows/test-migrations.yml
+    jobs:
+      test-migrations:
+        runs-on: ubuntu-latest
+        services:
+          postgres:
+            image: postgres:14
+            env:
+              POSTGRES_PASSWORD: postgres
+              POSTGRES_USER: postgres
+              POSTGRES_DB: test_db
+            ports:
+              - 5432:5432
+        steps:
+          - uses: actions/checkout@v3
+          - name: Apply migrations
+            run: npm run migrate:up
+          - name: Verify schema
+            run: npm run db:verify-schema
+    ```
+  </Accordion>
+  
+  <Accordion title="Migration Preview">
+    Generate migration preview for code review:
+    
+    ```bash
+    # Generate a preview of changes
+    npm run migrate:preview
+    
+    # This generates a diff of the schema before and after
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## CI/CD Integration
+
+We integrate migrations into our CI/CD pipeline:
+
+```yaml
+# .github/workflows/deploy.yml
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Apply migrations to staging
+        if: github.ref == 'refs/heads/develop'
+        run: npm run migrate:up:staging
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+      
+      - name: Apply migrations to production
+        if: github.ref == 'refs/heads/main'
+        run: npm run migrate:up:production
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+```
+
+## Migration Monitoring and Alerts
+
+We monitor migrations to ensure they complete successfully:
+
+1. **Log all migrations** with timestamps and execution time
+2. **Set up alerts** for failed migrations
+3. **Monitor database performance** during and after migrations
+4. **Track schema changes** in a central registry
+
+```sql
+-- Create a migrations log table
+CREATE TABLE public.migration_logs (
+  id SERIAL PRIMARY KEY,
+  migration_name TEXT NOT NULL,
+  applied_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  duration_ms INT,
+  status TEXT NOT NULL,
+  error_message TEXT
+);
+
+-- Log function
+CREATE OR REPLACE FUNCTION log_migration(
+  p_migration_name TEXT,
+  p_duration_ms INT,
+  p_status TEXT,
+  p_error_message TEXT DEFAULT NULL
+) RETURNS void AS $$
+BEGIN
+  INSERT INTO public.migration_logs (
+    migration_name, duration_ms, status, error_message
+  ) VALUES (
+    p_migration_name, p_duration_ms, p_status, p_error_message
+  );
+END;
+$$ LANGUAGE plpgsql;
+```
+
+## Database Migration Checklist
+
+<Card title="Migration Checklist" icon="clipboard-check">
+  <CheckboxField id="versioned" label="Migration is properly versioned" />
+  <CheckboxField id="reversible" label="Migration is reversible (rollback included)" />
+  <CheckboxField id="atomic" label="Changes are atomic and transactional" />
+  <CheckboxField id="compatible" label="Backward compatible with existing code" />
+  <CheckboxField id="tested" label="Tested on a copy of production data" />
+  <CheckboxField id="performance" label="Performance impact assessed" />
+  <CheckboxField id="security" label="Security implications reviewed" />
+  <CheckboxField id="documented" label="Changes documented in schema documentation" />
+</Card>
+
+## Troubleshooting Migration Issues
+
+<AccordionGroup>
+  <Accordion title="Migration fails to apply">
+    If a migration fails to apply:
+    
+    1. Check the error message for specific issues
+    2. Verify the migration file syntax is correct
+    3. Check for dependencies that might not exist yet
+    4. Confirm you have the necessary permissions
+    
+    ```bash
+    # Get detailed error
+    migrate -path ./migrations -database "postgres://..." up -verbose
+    ```
+  </Accordion>
+  
+  <Accordion title="Migration is stuck">
+    If a migration seems stuck:
+    
+    1. Check if there's a lock on the migrations table
+    2. Verify if the migration is actually running (check processes)
+    3. Manually release the lock if necessary
+    
+    ```sql
+    -- Check for locks
+    SELECT * FROM pg_locks
+    WHERE relation = 'schema_migrations'::regclass;
+    
+    -- Force release migration lock (use with caution)
+    DELETE FROM schema_migrations
+    WHERE version = '00123' AND dirty = true;
+    ```
+  </Accordion>
+  
+  <Accordion title="Rollback issues">
+    If rollback fails:
+    
+    1. Check if the rollback SQL is correct
+    2. Verify if there are dependencies preventing rollback
+    3. Consider creating a new forward migration to fix the issue
+    
+    ```bash
+    # Get detailed error on rollback
+    migrate -path ./migrations -database "postgres://..." down 1 -verbose
+    ```
+  </Accordion>
+</AccordionGroup>

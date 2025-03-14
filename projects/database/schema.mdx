@@ -1,0 +1,1237 @@
+---
+title: Database Schema
+description: Comprehensive documentation of Duraclim's database schema and data model
+icon: database
+---
+
+# Database Schema
+
+This document provides a comprehensive overview of the database schema used across Duraclim's applications. Understanding our data model is essential for effective development and maintaining data integrity.
+
+<Frame>
+  <img src="/images/database-schema-overview.png" alt="Database Schema Overview" className="rounded-lg" />
+</Frame>
+
+## Schema Overview
+
+Our database is structured around several core domains:
+
+<CardGroup cols={2}>
+  <Card title="Users & Authentication" icon="user-shield">
+    User accounts, roles, and authentication data
+  </Card>
+  
+  <Card title="Customer Management" icon="users">
+    Customer information and relationship data
+  </Card>
+  
+  <Card title="Service Operations" icon="screwdriver-wrench">
+    Service offerings, bookings, and operational data
+  </Card>
+  
+  <Card title="Sales & Marketing" icon="chart-line">
+    Sales pipeline, leads, and marketing campaign data
+  </Card>
+  
+  <Card title="Analytics & Reporting" icon="chart-mixed">
+    Aggregated data for analytics and business intelligence
+  </Card>
+  
+  <Card title="System Configuration" icon="gear">
+    Application settings and configuration data
+  </Card>
+</CardGroup>
+
+## Core Tables
+
+### Authentication & Users
+
+<AccordionGroup>
+  <Accordion title="auth.users">
+    The primary users table managed by Supabase Auth.
+    
+    ```sql
+    -- This table is managed by Supabase Auth
+    CREATE TABLE auth.users (
+      id UUID PRIMARY KEY,
+      email TEXT UNIQUE,
+      encrypted_password TEXT,
+      email_confirmed_at TIMESTAMP WITH TIME ZONE,
+      invited_at TIMESTAMP WITH TIME ZONE,
+      confirmation_token TEXT,
+      confirmation_sent_at TIMESTAMP WITH TIME ZONE,
+      recovery_token TEXT,
+      recovery_sent_at TIMESTAMP WITH TIME ZONE,
+      email_change_token TEXT,
+      email_change_sent_at TIMESTAMP WITH TIME ZONE,
+      last_sign_in_at TIMESTAMP WITH TIME ZONE,
+      raw_app_meta_data JSONB,
+      raw_user_meta_data JSONB,
+      is_super_admin BOOLEAN,
+      created_at TIMESTAMP WITH TIME ZONE,
+      updated_at TIMESTAMP WITH TIME ZONE,
+      phone TEXT,
+      phone_confirmed_at TIMESTAMP WITH TIME ZONE,
+      phone_change TEXT,
+      phone_change_token TEXT,
+      phone_change_sent_at TIMESTAMP WITH TIME ZONE,
+      confirmed_at TIMESTAMP WITH TIME ZONE,
+      email_change TEXT,
+      banned_until TIMESTAMP WITH TIME ZONE
+    );
+    ```
+  </Accordion>
+  
+  <Accordion title="public.profiles">
+    Extended user profile information.
+    
+    ```sql
+    CREATE TABLE public.profiles (
+      id UUID PRIMARY KEY REFERENCES auth.users(id),
+      first_name TEXT,
+      last_name TEXT,
+      avatar_url TEXT,
+      position TEXT,
+      department TEXT,
+      phone_number TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      
+      CONSTRAINT proper_names CHECK (
+        first_name IS NULL OR (LENGTH(first_name) > 1 AND LENGTH(first_name) <= 100)
+      ),
+      CONSTRAINT proper_last_name CHECK (
+        last_name IS NULL OR (LENGTH(last_name) > 1 AND LENGTH(last_name) <= 100)
+      )
+    );
+    
+    -- Create an index for efficient user lookups
+    CREATE INDEX idx_profiles_names ON public.profiles (first_name, last_name);
+    ```
+  </Accordion>
+  
+  <Accordion title="public.user_roles">
+    User role assignments for role-based access control.
+    
+    ```sql
+    CREATE TABLE public.user_roles (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+      role TEXT NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      
+      CONSTRAINT unique_user_role UNIQUE (user_id, role)
+    );
+    
+    -- Create an index for efficient role lookups
+    CREATE INDEX idx_user_roles_user_id ON public.user_roles (user_id);
+    CREATE INDEX idx_user_roles_role ON public.user_roles (role);
+    ```
+  </Accordion>
+  
+  <Accordion title="public.permissions">
+    Granular permissions system.
+    
+    ```sql
+    CREATE TABLE public.permissions (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      description TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    
+    CREATE TABLE public.role_permissions (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      role TEXT NOT NULL,
+      permission_id UUID NOT NULL REFERENCES public.permissions(id) ON DELETE CASCADE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      
+      CONSTRAINT unique_role_permission UNIQUE (role, permission_id)
+    );
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Customer Management
+
+<AccordionGroup>
+  <Accordion title="public.customers">
+    Main customer information table.
+    
+    ```sql
+    CREATE TABLE public.customers (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      address JSONB,
+      type TEXT CHECK (type IN ('residential', 'commercial', 'condo')),
+      status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'pending', 'blacklisted')),
+      pipedrive_id TEXT UNIQUE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      deleted_at TIMESTAMP WITH TIME ZONE,
+      
+      CONSTRAINT proper_email CHECK (
+        email IS NULL OR email ~* '^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$'
+      )
+    );
+    
+    -- Create indexes for efficient lookups
+    CREATE INDEX idx_customers_email ON public.customers (email) WHERE email IS NOT NULL;
+    CREATE INDEX idx_customers_phone ON public.customers (phone) WHERE phone IS NOT NULL;
+    CREATE INDEX idx_customers_type ON public.customers (type);
+    CREATE INDEX idx_customers_pipedrive_id ON public.customers (pipedrive_id) WHERE pipedrive_id IS NOT NULL;
+    ```
+  </Accordion>
+  
+  <Accordion title="public.addresses">
+    Physical address information.
+    
+    ```sql
+    CREATE TABLE public.addresses (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      customer_id UUID REFERENCES public.customers(id) ON DELETE CASCADE,
+      address_line1 TEXT NOT NULL,
+      address_line2 TEXT,
+      city TEXT NOT NULL,
+      state TEXT NOT NULL,
+      postal_code TEXT NOT NULL,
+      country TEXT NOT NULL DEFAULT 'Canada',
+      is_primary BOOLEAN DEFAULT FALSE,
+      latitude DECIMAL(10, 8),
+      longitude DECIMAL(11, 8),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      
+      CONSTRAINT one_primary_address_per_customer UNIQUE (customer_id, is_primary) 
+        DEFERRABLE INITIALLY DEFERRED
+    );
+    
+    -- Create indexes for geospatial queries
+    CREATE INDEX idx_addresses_customer_id ON public.addresses (customer_id);
+    CREATE INDEX idx_addresses_city_state ON public.addresses (city, state);
+    CREATE INDEX idx_addresses_coordinates ON public.addresses (latitude, longitude) 
+      WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
+    ```
+  </Accordion>
+  
+  <Accordion title="public.customer_notes">
+    Notes related to customers.
+    
+    ```sql
+    CREATE TABLE public.customer_notes (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      customer_id UUID NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
+      created_by UUID NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
+      content TEXT NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    
+    -- Create index for efficient lookups
+    CREATE INDEX idx_customer_notes_customer_id ON public.customer_notes (customer_id);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Service Operations
+
+<AccordionGroup>
+  <Accordion title="public.services">
+    Service offerings provided by Duraclim.
+    
+    ```sql
+    CREATE TABLE public.services (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      category TEXT NOT NULL CHECK (category IN ('casa', 'condo', 'commercial', 'aircommun')),
+      base_price DECIMAL(10, 2) NOT NULL,
+      is_active BOOLEAN DEFAULT TRUE,
+      image_url TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      deleted_at TIMESTAMP WITH TIME ZONE
+    );
+    
+    -- Create indexes
+    CREATE INDEX idx_services_category ON public.services (category) WHERE is_active = TRUE;
+    ```
+  </Accordion>
+  
+  <Accordion title="public.orders">
+    Customer orders and bookings.
+    
+    ```sql
+    CREATE TABLE public.orders (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      customer_id UUID NOT NULL REFERENCES public.customers(id),
+      address_id UUID REFERENCES public.addresses(id),
+      salesperson_id UUID REFERENCES auth.users(id),
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (
+        status IN ('pending', 'scheduled', 'completed', 'cancelled', 'refunded')
+      ),
+      total_amount DECIMAL(10, 2) NOT NULL,
+      scheduled_date TIMESTAMP WITH TIME ZONE,
+      completed_date TIMESTAMP WITH TIME ZONE,
+      notes TEXT,
+      jobber_id TEXT,
+      source TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    
+    -- Create indexes
+    CREATE INDEX idx_orders_customer_id ON public.orders (customer_id);
+    CREATE INDEX idx_orders_status ON public.orders (status);
+    CREATE INDEX idx_orders_scheduled_date ON public.orders (scheduled_date) 
+      WHERE scheduled_date IS NOT NULL;
+    CREATE INDEX idx_orders_jobber_id ON public.orders (jobber_id) 
+      WHERE jobber_id IS NOT NULL;
+    ```
+  </Accordion>
+  
+  <Accordion title="public.order_items">
+    Individual service items within an order.
+    
+    ```sql
+    CREATE TABLE public.order_items (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+      service_id UUID NOT NULL REFERENCES public.services(id),
+      quantity INT NOT NULL DEFAULT 1,
+      unit_price DECIMAL(10, 2) NOT NULL,
+      discount_amount DECIMAL(10, 2) DEFAULT 0,
+      total_price DECIMAL(10, 2) NOT NULL,
+      options JSONB,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    
+    -- Create indexes
+    CREATE INDEX idx_order_items_order_id ON public.order_items (order_id);
+    ```
+  </Accordion>
+  
+  <Accordion title="public.technicians">
+    Service technician information.
+    
+    ```sql
+    CREATE TABLE public.technicians (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      user_id UUID REFERENCES auth.users(id),
+      name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      status TEXT NOT NULL DEFAULT 'active' CHECK (
+        status IN ('active', 'inactive', 'on_leave')
+      ),
+      specialties TEXT[],
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    
+    -- Create indexes
+    CREATE INDEX idx_technicians_user_id ON public.technicians (user_id) 
+      WHERE user_id IS NOT NULL;
+    CREATE INDEX idx_technicians_status ON public.technicians (status);
+    ```
+  </Accordion>
+  
+  <Accordion title="public.job_assignments">
+    Assignment of technicians to service jobs.
+    
+    ```sql
+    CREATE TABLE public.job_assignments (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+      technician_id UUID NOT NULL REFERENCES public.technicians(id),
+      status TEXT NOT NULL DEFAULT 'assigned' CHECK (
+        status IN ('assigned', 'in_progress', 'completed', 'cancelled')
+      ),
+      start_time TIMESTAMP WITH TIME ZONE,
+      end_time TIMESTAMP WITH TIME ZONE,
+      notes TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      
+      CONSTRAINT check_time_order CHECK (
+        (start_time IS NULL AND end_time IS NULL) OR
+        (start_time IS NOT NULL AND end_time IS NULL) OR
+        (start_time IS NOT NULL AND end_time IS NOT NULL AND end_time > start_time)
+      )
+    );
+    
+    -- Create indexes
+    CREATE INDEX idx_job_assignments_order_id ON public.job_assignments (order_id);
+    CREATE INDEX idx_job_assignments_technician_id ON public.job_assignments (technician_id);
+    CREATE INDEX idx_job_assignments_status ON public.job_assignments (status);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Sales & Marketing
+
+<AccordionGroup>
+  <Accordion title="public.leads">
+    Sales leads and prospects.
+    
+    ```sql
+    CREATE TABLE public.leads (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      address JSONB,
+      source TEXT,
+      status TEXT NOT NULL DEFAULT 'new' CHECK (
+        status IN ('new', 'contacted', 'qualified', 'proposal', 'converted', 'lost')
+      ),
+      owner_id UUID REFERENCES auth.users(id),
+      lead_score INT,
+      notes TEXT,
+      pipedrive_id TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    
+    -- Create indexes
+    CREATE INDEX idx_leads_status ON public.leads (status);
+    CREATE INDEX idx_leads_owner_id ON public.leads (owner_id) WHERE owner_id IS NOT NULL;
+    CREATE INDEX idx_leads_pipedrive_id ON public.leads (pipedrive_id) WHERE pipedrive_id IS NOT NULL;
+    ```
+  </Accordion>
+  
+  <Accordion title="public.activities">
+    Sales activities and customer interactions.
+    
+    ```sql
+    CREATE TABLE public.activities (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      type TEXT NOT NULL CHECK (
+        type IN ('call', 'email', 'meeting', 'note', 'task')
+      ),
+      subject TEXT NOT NULL,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (
+        status IN ('pending', 'completed', 'cancelled')
+      ),
+      due_date TIMESTAMP WITH TIME ZONE,
+      completed_date TIMESTAMP WITH TIME ZONE,
+      user_id UUID NOT NULL REFERENCES auth.users(id),
+      lead_id UUID REFERENCES public.leads(id) ON DELETE SET NULL,
+      customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      
+      CONSTRAINT lead_or_customer CHECK (
+        (lead_id IS NOT NULL AND customer_id IS NULL) OR
+        (lead_id IS NULL AND customer_id IS NOT NULL)
+      )
+    );
+    
+    -- Create indexes
+    CREATE INDEX idx_activities_user_id ON public.activities (user_id);
+    CREATE INDEX idx_activities_lead_id ON public.activities (lead_id) WHERE lead_id IS NOT NULL;
+    CREATE INDEX idx_activities_customer_id ON public.activities (customer_id) WHERE customer_id IS NOT NULL;
+    CREATE INDEX idx_activities_status_due_date ON public.activities (status, due_date) 
+      WHERE status = 'pending';
+    ```
+  </Accordion>
+  
+  <Accordion title="public.campaigns">
+    Marketing campaigns.
+    
+    ```sql
+    CREATE TABLE public.campaigns (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      start_date DATE NOT NULL,
+      end_date DATE,
+      status TEXT NOT NULL DEFAULT 'planned' CHECK (
+        status IN ('planned', 'active', 'completed', 'cancelled')
+      ),
+      budget DECIMAL(10, 2),
+      actual_cost DECIMAL(10, 2),
+      owner_id UUID REFERENCES auth.users(id),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      
+      CONSTRAINT check_date_order CHECK (
+        end_date IS NULL OR end_date >= start_date
+      )
+    );
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Analytics & Reporting
+
+<AccordionGroup>
+  <Accordion title="public.analytics_revenue">
+    Revenue analytics data.
+    
+    ```sql
+    CREATE TABLE public.analytics_revenue (
+      id SERIAL PRIMARY KEY,
+      date DATE NOT NULL,
+      service_type TEXT NOT NULL,
+      region TEXT NOT NULL,
+      amount DECIMAL(12, 2) NOT NULL,
+      order_count INT NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    
+    -- Create indexes
+    CREATE INDEX idx_analytics_revenue_date ON public.analytics_revenue (date);
+    CREATE INDEX idx_analytics_revenue_service_type ON public.analytics_revenue (service_type);
+    CREATE INDEX idx_analytics_revenue_region ON public.analytics_revenue (region);
+    ```
+  </Accordion>
+  
+  <Accordion title="public.analytics_sales">
+    Sales performance analytics.
+    
+    ```sql
+    CREATE TABLE public.analytics_sales (
+      id SERIAL PRIMARY KEY,
+      date DATE NOT NULL,
+      salesperson_id UUID REFERENCES auth.users(id),
+      lead_count INT NOT NULL DEFAULT 0,
+      opportunity_count INT NOT NULL DEFAULT 0,
+      closed_won_count INT NOT NULL DEFAULT 0,
+      closed_lost_count INT NOT NULL DEFAULT 0,
+      revenue DECIMAL(12, 2) NOT NULL DEFAULT 0,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    
+    -- Create indexes
+    CREATE INDEX idx_analytics_sales_date ON public.analytics_sales (date);
+    CREATE INDEX idx_analytics_sales_salesperson_id ON public.analytics_sales (salesperson_id);
+    ```
+  </Accordion>
+  
+  <Accordion title="public.analytics_service">
+    Service delivery analytics.
+    
+    ```sql
+    CREATE TABLE public.analytics_service (
+      id SERIAL PRIMARY KEY,
+      date DATE NOT NULL,
+      service_type TEXT NOT NULL,
+      completed_jobs INT NOT NULL DEFAULT 0,
+      cancelled_jobs INT NOT NULL DEFAULT 0,
+      average_duration DECIMAL(10, 2),
+      customer_satisfaction DECIMAL(3, 2),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    
+    -- Create indexes
+    CREATE INDEX idx_analytics_service_date ON public.analytics_service (date);
+    CREATE INDEX idx_analytics_service_type ON public.analytics_service (service_type);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### System Configuration
+
+<AccordionGroup>
+  <Accordion title="public.settings">
+    Application settings and configuration.
+    
+    ```sql
+    CREATE TABLE public.settings (
+      id TEXT PRIMARY KEY,
+      value JSONB NOT NULL,
+      description TEXT,
+      updated_by UUID REFERENCES auth.users(id),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    ```
+  </Accordion>
+  
+  <Accordion title="public.api_keys">
+    API keys for external integrations.
+    
+    ```sql
+    CREATE TABLE public.api_keys (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      name TEXT NOT NULL,
+      key_hash TEXT NOT NULL UNIQUE,
+      user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+      permissions TEXT[] NOT NULL DEFAULT '{}',
+      last_used_at TIMESTAMP WITH TIME ZONE,
+      expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    
+    -- Create indexes
+    CREATE INDEX idx_api_keys_user_id ON public.api_keys (user_id);
+    ```
+  </Accordion>
+  
+  <Accordion title="public.audit_logs">
+    Audit trail for important actions.
+    
+    ```sql
+    CREATE TABLE public.audit_logs (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      table_name TEXT NOT NULL,
+      record_id UUID NOT NULL,
+      operation TEXT NOT NULL CHECK (
+        operation IN ('INSERT', 'UPDATE', 'DELETE')
+      ),
+      old_data JSONB,
+      new_data JSONB,
+      changed_by UUID REFERENCES auth.users(id),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    
+    -- Create indexes
+    CREATE INDEX idx_audit_logs_table_record ON public.audit_logs (table_name, record_id);
+    CREATE INDEX idx_audit_logs_changed_by ON public.audit_logs (changed_by) WHERE changed_by IS NOT NULL;
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Entity Relationship Diagram (ERD)
+
+The following diagram shows the relationships between major entities in our database:
+
+<Frame>
+  <img src="/images/database-erd.png" alt="Entity Relationship Diagram" className="rounded-lg" />
+</Frame>
+
+## Row-Level Security (RLS) Policies
+
+Supabase uses PostgreSQL's Row-Level Security feature to control access to table rows. Here are some key RLS policies:
+
+### Profiles Table Policies
+
+```sql
+-- Enable RLS
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- Users can read any profile
+CREATE POLICY "Anyone can read profiles"
+  ON public.profiles
+  FOR SELECT
+  USING (true);
+
+-- Users can only update their own profile
+CREATE POLICY "Users can update their own profile"
+  ON public.profiles
+  FOR UPDATE
+  USING (auth.uid() = id);
+
+-- Only admins can delete profiles
+CREATE POLICY "Only admins can delete profiles"
+  ON public.profiles
+  FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.user_roles
+      WHERE user_id = auth.uid() AND role = 'admin'
+    )
+  );
+```
+
+### Customers Table Policies
+
+```sql
+-- Enable RLS
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+
+-- Authenticated users can read customers
+CREATE POLICY "Authenticated users can read customers"
+  ON public.customers
+  FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+-- Only users with 'edit_customers' permission can insert/update customers
+CREATE POLICY "Users with permission can modify customers"
+  ON public.customers
+  FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.user_roles ur
+      JOIN public.role_permissions rp ON ur.role = rp.role
+      JOIN public.permissions p ON rp.permission_id = p.id
+      WHERE ur.user_id = auth.uid() AND p.name = 'edit_customers'
+    )
+  );
+
+-- Similar policies for UPDATE and DELETE operations...
+```
+
+## Views
+
+We use database views to simplify queries for common data needs:
+
+### User Information View
+
+```sql
+CREATE OR REPLACE VIEW public.user_info AS
+SELECT 
+  u.id,
+  u.email,
+  p.first_name,
+  p.last_name,
+  p.first_name || ' ' || p.last_name AS full_name,
+  p.avatar_url,
+  p.position,
+  p.department,
+  ARRAY_AGG(ur.role) AS roles,
+  u.created_at
+FROM 
+  auth.users u
+LEFT JOIN 
+  public.profiles p ON u.id = p.id
+LEFT JOIN 
+  public.user_roles ur ON u.id = ur.user_id
+GROUP BY 
+  u.id, p.id;
+```
+
+### Customer Orders View
+
+```sql
+CREATE OR REPLACE VIEW public.customer_orders AS
+SELECT 
+  c.id AS customer_id,
+  c.name AS customer_name,
+  o.id AS order_id,
+  o.total_amount,
+  o.status,
+  o.scheduled_date,
+  o.completed_date,
+  a.address_line1,
+  a.city,
+  a.state,
+  a.postal_code,
+  COUNT(oi.id) AS item_count,
+  o.created_at
+FROM 
+  public.customers c
+JOIN 
+  public.orders o ON c.id = o.customer_id
+LEFT JOIN 
+  public.addresses a ON o.address_id = a.id
+LEFT JOIN 
+  public.order_items oi ON o.id = oi.order_id
+GROUP BY 
+  c.id, c.name, o.id, a.id;
+```
+
+### Sales Dashboard View
+
+```sql
+CREATE OR REPLACE VIEW public.sales_dashboard AS
+SELECT 
+  DATE_TRUNC('day', o.created_at) AS date,
+  COUNT(DISTINCT o.id) AS orders,
+  SUM(o.total_amount) AS revenue,
+  AVG(o.total_amount) AS average_order_value,
+  COUNT(DISTINCT o.customer_id) AS unique_customers,
+  STRING_AGG(DISTINCT s.category, ', ') AS service_categories
+FROM 
+  public.orders o
+JOIN 
+  public.order_items oi ON o.id = oi.order_id
+JOIN 
+  public.services s ON oi.service_id = s.id
+WHERE 
+  o.status IN ('completed', 'scheduled')
+GROUP BY 
+  DATE_TRUNC('day', o.created_at)
+ORDER BY 
+  date DESC;
+```
+
+## Functions
+
+We use PostgreSQL functions for complex operations:
+
+### User Permissions Function
+
+```sql
+CREATE OR REPLACE FUNCTION get_user_permissions(user_id UUID)
+RETURNS TABLE (permission_name TEXT) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT DISTINCT p.name
+  FROM public.permissions p
+  JOIN public.role_permissions rp ON p.id = rp.permission_id
+  JOIN public.user_roles ur ON rp.role = ur.role
+  WHERE ur.user_id = get_user_permissions.user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+### Calculate Revenue Function
+
+```sql
+CREATE OR REPLACE FUNCTION calculate_revenue(
+  start_date DATE,
+  end_date DATE,
+  service_category TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+  date DATE,
+  revenue DECIMAL(12, 2),
+  order_count INTEGER
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    DATE_TRUNC('day', o.created_at)::DATE AS date,
+    SUM(o.total_amount) AS revenue,
+    COUNT(DISTINCT o.id) AS order_count
+  FROM 
+    public.orders o
+  JOIN 
+    public.order_items oi ON o.id = oi.order_id
+  JOIN 
+    public.services s ON oi.service_id = s.id
+  WHERE 
+    o.created_at >= start_date AND 
+    o.created_at <= end_date AND
+    (service_category IS NULL OR s.category = service_category)
+  GROUP BY 
+    DATE_TRUNC('day', o.created_at)::DATE
+  ORDER BY 
+    date;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+## Performance Considerations
+
+For optimal database performance, we follow these guidelines:
+
+1. **Use appropriate indexes** for frequently queried columns
+2. **Avoid overusing JSON/JSONB** fields for data that's frequently filtered or sorted
+3. **Set explicit constraints** to maintain data integrity
+4. **Use materialized views** for expensive calculations that don't change frequently
+5. **Monitor query performance** and optimize slow queries
+
+### Indexing Strategy
+
+We create indexes for:
+
+- Primary and foreign keys
+- Columns used in WHERE clauses
+- Columns used in JOIN conditions
+- Columns used in GROUP BY, ORDER BY
+- Unique constraints
+
+We avoid creating indexes on:
+
+- Small tables where sequential scans are faster
+- Columns with low cardinality (few distinct values)
+- Columns that are rarely queried
+- Columns that are frequently updated
+
+## Database Maintenance
+
+Regular maintenance tasks:
+
+1. **Vacuum** - Regular VACUUM operations to reclaim space
+2. **Analyze** - Update statistics for the query planner
+3. **Reindex** - Rebuild indexes to reduce fragmentation
+4. **Monitoring** - Monitor database metrics for performance issues
+
+## Common Query Patterns
+
+Here are some common query patterns used in our applications:
+
+### Paginated Customer Listing
+
+```sql
+SELECT 
+  c.id, 
+  c.name, 
+  c.email, 
+  c.phone, 
+  c.type,
+  c.status,
+  COUNT(o.id) AS order_count,
+  COALESCE(SUM(o.total_amount), 0) AS total_spent,
+  MAX(o.created_at) AS last_order_date
+FROM 
+  public.customers c
+LEFT JOIN 
+  public.orders o ON c.id = o.customer_id
+WHERE 
+  c.deleted_at IS NULL
+GROUP BY 
+  c.id
+ORDER BY 
+  c.created_at DESC
+LIMIT 10 OFFSET 0;
+```
+
+### Order Details with Items
+
+```sql
+SELECT 
+  o.id,
+  o.status,
+  o.total_amount,
+  o.scheduled_date,
+  c.name AS customer_name,
+  c.email AS customer_email,
+  c.phone AS customer_phone,
+  a.address_line1,
+  a.city,
+  a.state,
+  a.postal_code,
+  json_agg(
+    json_build_object(
+      'id', oi.id,
+      'service_id', oi.service_id,
+      'service_name', s.name,
+      'quantity', oi.quantity,
+      'unit_price', oi.unit_price,
+      'total_price', oi.total_price,
+      'options', oi.options
+    )
+  ) AS items
+FROM 
+  public.orders o
+JOIN 
+  public.customers c ON o.customer_id = c.id
+LEFT JOIN 
+  public.addresses a ON o.address_id = a.id
+JOIN 
+  public.order_items oi ON o.id = oi.order_id
+JOIN 
+  public.services s ON oi.service_id = s.id
+WHERE 
+  o.id = '123e4567-e89b-12d3-a456-426614174000'
+GROUP BY 
+  o.id, c.id, a.id;
+```
+
+## Schema Evolution and Migrations
+
+As the application evolves, we often need to modify the database schema. We follow these best practices:
+
+1. **Never make breaking changes** to existing tables in production without a migration path
+2. **Use transactions** for schema changes to ensure atomicity
+3. **Add columns as nullable** first, then fill in data, finally add constraints
+4. **Create new tables** before migrating data from old ones
+5. **Use feature flags** to control when new schema elements are used in the application
+
+See the [Database Migrations](/projects/database/migrations) document for more details on our migration process.
+
+## Logical Data Model
+
+Beyond the physical schema, it's important to understand the logical data model and how entities relate to each other:
+
+<AccordionGroup>
+  <Accordion title="Users and Authentication">
+    The **Users** domain includes all data related to system users, authentication, and access control:
+    
+    - **User** - Basic user account information
+    - **Profile** - Extended user profile data
+    - **Role** - Role assignments for permissions
+    - **Permission** - Granular permissions for functionality
+    
+    This domain focuses on the "who" of the system - who can access what features and data.
+  </Accordion>
+  
+  <Accordion title="Customer Management">
+    The **Customer** domain handles all customer-related data:
+    
+    - **Customer** - Core customer information
+    - **Address** - Physical locations
+    - **Note** - Customer-related notes
+    
+    This domain focuses on maintaining accurate customer records for both sales and operations.
+  </Accordion>
+  
+  <Accordion title="Service Operations">
+    The **Service Operations** domain manages the operational aspects of our business:
+    
+    - **Service** - Service offerings catalog
+    - **Order** - Customer orders/bookings
+    - **Order Item** - Individual service items
+    - **Technician** - Service delivery personnel
+    - **Job Assignment** - Assignment of technicians to jobs
+    
+    This domain covers the core operational flow from service definition to delivery.
+  </Accordion>
+  
+  <Accordion title="Sales and Marketing">
+    The **Sales and Marketing** domain tracks sales activities and marketing efforts:
+    
+    - **Lead** - Prospective customers
+    - **Activity** - Sales and customer interactions
+    - **Campaign** - Marketing initiatives
+    
+    This domain focuses on acquiring new customers and managing the sales pipeline.
+  </Accordion>
+</AccordionGroup>
+
+## Data Governance
+
+We follow these principles for data governance:
+
+1. **Data Classification** - Classify data based on sensitivity and importance
+2. **Access Control** - Restrict data access based on need-to-know
+3. **Data Quality** - Ensure data accuracy, completeness, and consistency
+4. **Auditing** - Track changes to sensitive data
+5. **Retention** - Define how long data should be kept
+
+### Sensitive Data Handling
+
+<Table>
+  <Thead>
+    <Tr>
+      <Th>Data Type</Th>
+      <Th>Classification</Th>
+      <Th>Access Control</Th>
+      <Th>Encryption</Th>
+    </Tr>
+  </Thead>
+  <Tbody>
+    <Tr>
+      <Td>User credentials</Td>
+      <Td>Restricted</Td>
+      <Td>Authentication system only</Td>
+      <Td>Yes (one-way hash)</Td>
+    </Tr>
+    <Tr>
+      <Td>Customer contact info</Td>
+      <Td>Confidential</Td>
+      <Td>Sales, Support, Management</Td>
+      <Td>No</Td>
+    </Tr>
+    <Tr>
+      <Td>Order details</Td>
+      <Td>Internal</Td>
+      <Td>All employees</Td>
+      <Td>No</Td>
+    </Tr>
+    <Tr>
+      <Td>Financial data</Td>
+      <Td>Restricted</Td>
+      <Td>Finance team, Management</Td>
+      <Td>Yes</Td>
+    </Tr>
+  </Tbody>
+</Table>
+
+## Database Setup Instructions
+
+To set up a local development database:
+
+<Steps>
+  <Step title="Install PostgreSQL">
+    Install PostgreSQL 14+ on your development machine
+  </Step>
+  
+  <Step title="Create database">
+    ```bash
+    createdb duraclim_dev
+    ```
+  </Step>
+  
+  <Step title="Apply schema">
+    ```bash
+    # Navigate to project root
+    cd /path/to/project
+    
+    # Run schema script
+    psql -d duraclim_dev -f lib/sql/schema.sql
+    ```
+  </Step>
+  
+  <Step title="Seed test data">
+    ```bash
+    psql -d duraclim_dev -f lib/sql/seed.sql
+    ```
+  </Step>
+  
+  <Step title="Connect from application">
+    Update your local .env file with database connection details:
+    ```
+    DATABASE_URL=postgres://postgres:password@localhost:5432/duraclim_dev
+    ```
+  </Step>
+</Steps>
+
+## Common Database Tasks
+
+### Adding a New Table
+
+<Steps>
+  <Step title="Create migration script">
+    Create a new file in the migrations directory with a sequential number:
+    ```sql
+    -- migrations/00123_add_new_table.sql
+    CREATE TABLE public.new_table (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    
+    -- Add indexes
+    CREATE INDEX idx_new_table_name ON public.new_table (name);
+    
+    -- Add RLS policies
+    ALTER TABLE public.new_table ENABLE ROW LEVEL SECURITY;
+    
+    CREATE POLICY "Authenticated users can read new_table"
+      ON public.new_table
+      FOR SELECT
+      USING (auth.role() = 'authenticated');
+    ```
+  </Step>
+  
+  <Step title="Apply migration">
+    ```bash
+    # Using the project's migration tool
+    npm run migrate
+    
+    # Or manually
+    psql -d duraclim_dev -f migrations/00123_add_new_table.sql
+    ```
+  </Step>
+  
+  <Step title="Update TypeScript types">
+    Update the TypeScript type definitions to match the new schema.
+  </Step>
+  
+  <Step title="Update documentation">
+    Update this schema documentation to include the new table.
+  </Step>
+</Steps>
+
+### Adding a New Column
+
+<Steps>
+  <Step title="Create migration script">
+    ```sql
+    -- migrations/00124_add_column_to_table.sql
+    -- First add the column as nullable
+    ALTER TABLE public.existing_table
+    ADD COLUMN new_column TEXT;
+    
+    -- Add a comment explaining the column
+    COMMENT ON COLUMN public.existing_table.new_column IS 'Description of the new column';
+    ```
+  </Step>
+  
+  <Step title="Apply migration">
+    ```bash
+    npm run migrate
+    ```
+  </Step>
+  
+  <Step title="Fill in data (if necessary)">
+    ```sql
+    -- If you need to populate the new column with data
+    UPDATE public.existing_table
+    SET new_column = 'default value';
+    ```
+  </Step>
+  
+  <Step title="Add constraints (if necessary)">
+    ```sql
+    -- Add any constraints after data is filled
+    ALTER TABLE public.existing_table
+    ALTER COLUMN new_column SET NOT NULL;
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting Common Issues
+
+<AccordionGroup>
+  <Accordion title="Slow queries">
+    If a query is running slowly:
+    
+    1. Use `EXPLAIN ANALYZE` to understand the query plan
+    2. Check if appropriate indexes are in place
+    3. Rewrite the query to be more efficient
+    4. Consider adding missing indexes
+    
+    Example:
+    ```sql
+    EXPLAIN ANALYZE
+    SELECT * FROM public.customers
+    WHERE email LIKE '%gmail.com';
+    ```
+    
+    The above query won't use an index efficiently because of the leading wildcard. Consider rewriting:
+    ```sql
+    SELECT * FROM public.customers
+    WHERE email ILIKE '%@gmail.com';
+    
+    -- And add an index:
+    CREATE INDEX idx_customers_email_pattern ON public.customers
+    (substring(email from '@(.*)));
+    ```
+  </Accordion>
+  
+  <Accordion title="Connection issues">
+    If you're having trouble connecting to the database:
+    
+    1. Check your connection string format
+    2. Verify PostgreSQL is running (`pg_isready -d duraclim_dev`)
+    3. Check if you have permissions to access the database
+    4. Verify the database exists (`psql -l`)
+    5. Check for max connections errors in PostgreSQL logs
+  </Accordion>
+  
+  <Accordion title="Permissions errors">
+    If you're getting permissions errors:
+    
+    1. Check RLS policies for the affected tables
+    2. Verify the user has appropriate roles assigned
+    3. Use `auth.uid()` in queries to debug permission issues
+    4. Check if the table has RLS enabled
+    
+    Example debugging query:
+    ```sql
+    -- Run as the authenticated user
+    SELECT auth.uid() as current_user_id;
+    
+    -- Check user roles
+    SELECT * FROM public.user_roles WHERE user_id = auth.uid();
+    
+    -- Check permissions for a specific role
+    SELECT p.name
+    FROM public.permissions p
+    JOIN public.role_permissions rp ON p.id = rp.permission_id
+    WHERE rp.role = 'editor';
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Database Scalability
+
+As the application grows, we follow these practices to ensure database scalability:
+
+1. **Horizontal partitioning (sharding)** for very large tables based on natural partitioning keys
+2. **Read replicas** for scaling read-heavy workloads
+3. **Connection pooling** to efficiently manage database connections
+4. **Caching** to reduce database load for frequently accessed data
+5. **Materialized views** for expensive calculations that don't change frequently
+
+## Resources
+
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [Supabase Documentation](https://supabase.com/docs)
+- [Database Schema Diagrams](/images/database-schema-diagrams.pdf)
+- [Data Dictionary](/resources/data-dictionary.xlsx)

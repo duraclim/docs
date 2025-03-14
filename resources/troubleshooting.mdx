@@ -1,0 +1,1784 @@
+---
+title: Troubleshooting
+description: Common issues and solutions for Duraclim's systems and applications
+icon: wrench
+---
+
+# Troubleshooting
+
+This document provides guidance for diagnosing and resolving common issues with Duraclim's systems and applications. Use this as a reference when you encounter problems during development or in production environments.
+
+<Frame>
+  <img src="/images/troubleshooting-process.png" alt="Troubleshooting Process" className="rounded-lg" />
+</Frame>
+
+## General Troubleshooting Methodology
+
+Follow these steps for a systematic approach to troubleshooting:
+
+<Steps>
+  <Step title="Identify the problem">
+    Gather specific details about the issue:
+    - What exactly is happening?
+    - When did it start?
+    - Is it reproducible?
+    - What are the error messages?
+    - What changed recently?
+  </Step>
+  
+  <Step title="Gather information">
+    Collect relevant data:
+    - Check logs
+    - Review error messages
+    - Look at monitoring dashboards
+    - Get environment information
+  </Step>
+  
+  <Step title="Analyze">
+    Examine the information to identify patterns or potential causes:
+    - Compare with working systems
+    - Look for correlations with recent changes
+    - Research similar issues
+  </Step>
+  
+  <Step title="Develop a hypothesis">
+    Form a theory about what's causing the issue based on the available information.
+  </Step>
+  
+  <Step title="Test your hypothesis">
+    Verify your theory:
+    - Make a controlled change
+    - Test in isolation when possible
+    - Check if the issue is resolved
+  </Step>
+  
+  <Step title="Implement the solution">
+    Once confirmed, implement the solution:
+    - Document what you did
+    - Update relevant documentation
+    - Share the knowledge with the team
+  </Step>
+  
+  <Step title="Prevent recurrence">
+    Take steps to prevent the issue from happening again:
+    - Add monitoring or alerts
+    - Update processes or documentation
+    - Implement safeguards
+  </Step>
+</Steps>
+
+## Development Environment Issues
+
+### Local Development Setup
+
+<AccordionGroup>
+  <Accordion title="Node.js / NPM Issues">
+    **Issue: Package installation failures**
+    
+    **Symptoms:**
+    - `npm install` fails with cryptic errors
+    - Dependency conflicts
+    - Node version mismatches
+    
+    **Solutions:**
+    1. Verify Node.js version matches project requirements
+       ```bash
+       node -v  # Should match .nvmrc or package.json engines
+       ```
+    
+    2. Clear NPM cache
+       ```bash
+       npm cache clean --force
+       ```
+    
+    3. Delete node_modules and reinstall
+       ```bash
+       rm -rf node_modules
+       rm package-lock.json
+       npm install
+       ```
+    
+    4. Check for conflicting global packages
+       ```bash
+       npm list -g --depth=0
+       ```
+    
+    5. Try using Yarn instead
+       ```bash
+       yarn install
+       ```
+  </Accordion>
+  
+  <Accordion title="Docker Issues">
+    **Issue: Docker container fails to start**
+    
+    **Symptoms:**
+    - Container exits immediately
+    - Port conflicts
+    - Volume mount issues
+    
+    **Solutions:**
+    1. Check container logs
+       ```bash
+       docker logs <container_id>
+       ```
+    
+    2. Verify port availability
+       ```bash
+       # Check if port is already in use
+       sudo lsof -i :<port>
+       ```
+    
+    3. Check volume mount permissions
+       ```bash
+       # Fix permissions on host directory
+       chmod -R 777 ./data
+       ```
+    
+    4. Rebuild image from scratch
+       ```bash
+       docker-compose build --no-cache
+       ```
+    
+    5. Reset Docker environment
+       ```bash
+       # Stop all containers
+       docker-compose down
+       
+       # Remove all containers, networks, and volumes
+       docker system prune -a --volumes
+       
+       # Start fresh
+       docker-compose up -d
+       ```
+  </Accordion>
+  
+  <Accordion title="Go Development Issues">
+    **Issue: Go module dependency problems**
+    
+    **Symptoms:**
+    - Build failures with module errors
+    - Version conflicts
+    - Imports not found
+    
+    **Solutions:**
+    1. Update Go modules
+       ```bash
+       go mod tidy
+       ```
+    
+    2. Clear module cache
+       ```bash
+       go clean -modcache
+       ```
+    
+    3. Check for private repository access
+       ```bash
+       # Set up GOPRIVATE for private repos
+       go env -w GOPRIVATE=github.com/duraclim/*
+       ```
+    
+    4. Verify Go version compatibility
+       ```bash
+       go version
+       # Should match go.mod or project requirements
+       ```
+    
+    5. Manually replace problematic module temporarily
+       ```bash
+       # In go.mod
+       replace github.com/problem/module => ../local/module
+       ```
+  </Accordion>
+  
+  <Accordion title="Database Connection Issues">
+    **Issue: Cannot connect to local database**
+    
+    **Symptoms:**
+    - Connection refused errors
+    - Authentication failures
+    - Database not found
+    
+    **Solutions:**
+    1. Verify database is running
+       ```bash
+       # For PostgreSQL
+       pg_isready -h localhost -p 5432
+       ```
+    
+    2. Check connection string
+       ```bash
+       # Ensure format is correct
+       # postgres://username:password@localhost:5432/database
+       ```
+    
+    3. Verify credentials
+       ```bash
+       # PostgreSQL connection test
+       psql -h localhost -U username -d database
+       ```
+    
+    4. Check database exists
+       ```bash
+       # List PostgreSQL databases
+       psql -h localhost -U postgres -c "\l"
+       ```
+    
+    5. Restart database service
+       ```bash
+       # Docker container
+       docker restart postgres-container
+       
+       # Local service
+       sudo service postgresql restart
+       ```
+  </Accordion>
+</AccordionGroup>
+
+### Common Build Errors
+
+<AccordionGroup>
+  <Accordion title="Next.js Build Failures">
+    **Issue: Next.js build fails**
+    
+    **Symptoms:**
+    - Compilation errors
+    - Type errors
+    - Module resolution issues
+    
+    **Solutions:**
+    1. Clear Next.js cache
+       ```bash
+       rm -rf .next
+       ```
+    
+    2. Check TypeScript errors
+       ```bash
+       npx tsc --noEmit
+       ```
+    
+    3. Verify compatible package versions
+       ```bash
+       # Check React and Next.js versions are compatible
+       npm ls react next
+       ```
+    
+    4. Update dependencies
+       ```bash
+       npm update
+       ```
+    
+    5. Check for project-specific issues
+       ```bash
+       # ESLint issues
+       npm run lint
+       
+       # Type issues
+       npm run type-check
+       ```
+  </Accordion>
+  
+  <Accordion title="Go Build Errors">
+    **Issue: Go build fails**
+    
+    **Symptoms:**
+    - Compilation errors
+    - Import errors
+    - Undefined symbols
+    
+    **Solutions:**
+    1. Check for syntax errors
+       ```bash
+       go vet ./...
+       ```
+    
+    2. Clean build cache
+       ```bash
+       go clean -cache
+       ```
+    
+    3. Check for missing dependencies
+       ```bash
+       go mod tidy
+       ```
+    
+    4. Verify correct Go version
+       ```bash
+       go version
+       # Should match go.mod
+       ```
+    
+    5. Build with verbose output
+       ```bash
+       go build -v ./...
+       ```
+  </Accordion>
+  
+  <Accordion title="Docker Build Issues">
+    **Issue: Docker build fails**
+    
+    **Symptoms:**
+    - Build context errors
+    - Layer caching issues
+    - Resource limitations
+    
+    **Solutions:**
+    1. Clean Docker build cache
+       ```bash
+       docker builder prune -f
+       ```
+    
+    2. Build with no cache
+       ```bash
+       docker build --no-cache -t my-image .
+       ```
+    
+    3. Check Dockerfile syntax
+       ```bash
+       # Use linter
+       hadolint Dockerfile
+       ```
+    
+    4. Increase Docker resources
+       ```
+       # In Docker Desktop settings, increase Memory/CPU
+       ```
+    
+    5. Optimize build context
+       ```bash
+       # Add more entries to .dockerignore
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Frontend Application Issues
+
+### Next.js Applications
+
+<AccordionGroup>
+  <Accordion title="Rendering Issues">
+    **Issue: Components not rendering correctly**
+    
+    **Symptoms:**
+    - Blank screen
+    - Missing UI elements
+    - React hydration errors
+    
+    **Solutions:**
+    1. Check browser console for errors
+    
+    2. Verify component props
+       ```jsx
+       {/* Add debugging output */}
+       <pre>{JSON.stringify(props, null, 2)}</pre>
+       ```
+    
+    3. Test with simpler data
+       ```jsx
+       // Replace complex data with simple test data
+       const testData = { name: "Test", id: "123" };
+       ```
+    
+    4. Check for hydration issues
+       ```jsx
+       // Add key when mapping components
+       {items.map(item => <Component key={item.id} {...item} />)}
+       ```
+    
+    5. Implement error boundaries
+       ```jsx
+       import { ErrorBoundary } from '@/components/ErrorBoundary';
+       
+       <ErrorBoundary fallback={<div>Something went wrong</div>}>
+         <MyComponent />
+       </ErrorBoundary>
+       ```
+  </Accordion>
+  
+  <Accordion title="Routing Issues">
+    **Issue: Page navigation problems**
+    
+    **Symptoms:**
+    - 404 errors
+    - Infinite redirects
+    - Routes not matching
+    
+    **Solutions:**
+    1. Check route definitions
+       ```jsx
+       // Make sure route definitions match expected patterns
+       ```
+    
+    2. Test static routes first
+       ```jsx
+       // Navigate to a known static route
+       ```
+    
+    3. Debug dynamic routes
+       ```jsx
+       // Log params
+       console.log('Route params:', params);
+       ```
+    
+    4. Check for middleware issues
+       ```jsx
+       // Temporarily disable middleware to isolate the issue
+       ```
+    
+    5. Verify internationalization setup
+       ```jsx
+       // Check locale settings
+       console.log('Current locale:', locale);
+       ```
+  </Accordion>
+  
+  <Accordion title="Data Fetching Issues">
+    **Issue: Data not loading correctly**
+    
+    **Symptoms:**
+    - Empty data
+    - Stale data
+    - Loading errors
+    
+    **Solutions:**
+    1. Check API responses in Network tab
+    
+    2. Verify API route implementation
+       ```jsx
+       // Add logging to API route
+       console.log('Request:', req.body);
+       ```
+    
+    3. Test with mock data
+       ```jsx
+       // Replace fetching with static data temporarily
+       const data = MOCK_DATA;
+       ```
+    
+    4. Check caching behavior
+       ```jsx
+       // Add cache control headers
+       res.setHeader('Cache-Control', 'no-store');
+       ```
+    
+    5. Implement proper error handling
+       ```jsx
+       try {
+         const data = await fetchData();
+         return data;
+       } catch (error) {
+         console.error('Fetch error:', error);
+         throw new Error('Failed to fetch data');
+       }
+       ```
+  </Accordion>
+  
+  <Accordion title="Authentication Issues">
+    **Issue: Authentication not working**
+    
+    **Symptoms:**
+    - Unable to log in
+    - Session expiring unexpectedly
+    - Authorization errors
+    
+    **Solutions:**
+    1. Check Supabase console for auth logs
+    
+    2. Verify token storage
+       ```jsx
+       // Check if token is stored correctly
+       console.log('Token:', localStorage.getItem('token'));
+       ```
+    
+    3. Check for CORS issues
+       ```
+       // Look for CORS errors in console
+       ```
+    
+    4. Verify cookie settings
+       ```jsx
+       // Ensure cookies are set with proper attributes
+       setCookie('auth', token, { 
+         path: '/',
+         secure: true,
+         sameSite: 'strict'
+       });
+       ```
+    
+    5. Check auth middleware
+       ```jsx
+       // Add debugging to middleware
+       console.log('Auth middleware:', session);
+       ```
+  </Accordion>
+</AccordionGroup>
+
+### UI Component Issues
+
+<AccordionGroup>
+  <Accordion title="Form Input Problems">
+    **Issue: Form inputs not working correctly**
+    
+    **Symptoms:**
+    - Values not updating
+    - Validation not triggering
+    - Form submission issues
+    
+    **Solutions:**
+    1. Check controlled vs. uncontrolled inputs
+       ```jsx
+       // Ensure you're using controlled inputs
+       const [value, setValue] = useState('');
+       
+       <input 
+         value={value} 
+         onChange={(e) => setValue(e.target.value)} 
+       />
+       ```
+    
+    2. Verify form state
+       ```jsx
+       // Log form state
+       console.log('Form state:', formState);
+       ```
+    
+    3. Check validation logic
+       ```jsx
+       // Test validation separately
+       const isValid = validateInput(value);
+       console.log('Validation result:', isValid);
+       ```
+    
+    4. Inspect event handlers
+       ```jsx
+       // Add debugging to event handlers
+       const handleSubmit = (e) => {
+         e.preventDefault();
+         console.log('Submitting form with:', formData);
+         // ...rest of handler
+       };
+       ```
+    
+    5. Test with simplified form
+       ```jsx
+       // Create minimal test case
+       <form onSubmit={handleSubmit}>
+         <input type="text" value={value} onChange={e => setValue(e.target.value)} />
+         <button type="submit">Submit</button>
+       </form>
+       ```
+  </Accordion>
+  
+  <Accordion title="CSS/Styling Issues">
+    **Issue: Styles not applying correctly**
+    
+    **Symptoms:**
+    - Missing styles
+    - Layout issues
+    - Inconsistent appearance
+    
+    **Solutions:**
+    1. Check class name application
+       ```jsx
+       // Make sure className is applied correctly
+       <div className={styles.container}>
+         <p className={styles.text}>Content</p>
+       </div>
+       ```
+    
+    2. Verify CSS precedence
+       ```css
+       /* Use more specific selectors or !important for testing */
+       .container .text {
+         color: red !important;
+       }
+       ```
+    
+    3. Test with inline styles
+       ```jsx
+       // Try inline styles to isolate issue
+       <div style={{ color: 'red', padding: '10px' }}>
+         Test content
+       </div>
+       ```
+    
+    4. Check for Tailwind class purging
+       ```jsx
+       // Make sure Tailwind classes are not being purged
+       // Add classes to safelist in tailwind.config.js
+       ```
+    
+    5. Inspect CSS using browser tools
+       ```
+       // Use browser inspector to see what styles are applied
+       ```
+  </Accordion>
+  
+  <Accordion title="State Management Issues">
+    **Issue: Component state not updating correctly**
+    
+    **Symptoms:**
+    - UI not reflecting state changes
+    - Unexpected re-renders
+    - Stale state values
+    
+    **Solutions:**
+    1. Check useState usage
+       ```jsx
+       // Make sure you're not using state setter incorrectly
+       // Incorrect
+       setCounter(counter + 1);
+       setCounter(counter + 1); // This won't work as expected
+       
+       // Correct
+       setCounter(prev => prev + 1);
+       setCounter(prev => prev + 1);
+       ```
+    
+    2. Debug with useEffect
+       ```jsx
+       useEffect(() => {
+         console.log('State updated:', state);
+       }, [state]);
+       ```
+    
+    3. Check for closure issues
+       ```jsx
+       // Use refs for values that need to persist across renders
+       const valueRef = useRef(initialValue);
+       
+       // Update the ref
+       valueRef.current = newValue;
+       ```
+    
+4. Check for async state updates
+       ```jsx
+       // Make sure async operations update state correctly
+       useEffect(() => {
+         let isMounted = true;
+         
+         fetchData().then(result => {
+           if (isMounted) {
+             setState(result);
+           }
+         });
+         
+         return () => {
+           isMounted = false;
+         };
+       }, []);
+       ```
+    
+    5. Test with React DevTools
+       ```
+       // Use React DevTools to inspect component state
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Backend Application Issues
+
+### Go Microservices
+
+<AccordionGroup>
+  <Accordion title="API Endpoint Issues">
+    **Issue: API not responding correctly**
+    
+    **Symptoms:**
+    - HTTP errors (4xx, 5xx)
+    - Timeouts
+    - Empty or incorrect responses
+    
+    **Solutions:**
+    1. Check server logs
+       ```bash
+       # View logs for the service
+       docker logs go-service-container
+       ```
+    
+    2. Verify endpoint URL and method
+       ```bash
+       # Test endpoint with curl
+       curl -v -X GET http://localhost:8080/api/resource
+       ```
+    
+    3. Check for route registration
+       ```go
+       // Verify routes are registered correctly
+       r.HandleFunc("/api/resource", handler.HandleResource).Methods("GET")
+       ```
+    
+    4. Test with simplified handler
+       ```go
+       // Create simple test handler
+       func TestHandler(w http.ResponseWriter, r *http.Request) {
+           w.Header().Set("Content-Type", "application/json")
+           w.WriteHeader(http.StatusOK)
+           w.Write([]byte(`{"status":"ok"}`))
+       }
+       ```
+    
+    5. Implement request logging middleware
+       ```go
+       func LoggingMiddleware(next http.Handler) http.Handler {
+           return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+               log.Printf("Request: %s %s", r.Method, r.URL.Path)
+               next.ServeHTTP(w, r)
+               log.Printf("Response status: %d", w.(statusRecorder).status)
+           })
+       }
+       ```
+  </Accordion>
+  
+  <Accordion title="Database Connection Issues">
+    **Issue: Database connection failures**
+    
+    **Symptoms:**
+    - Connection timeout errors
+    - "Connection refused" errors
+    - Database unavailable errors
+    
+    **Solutions:**
+    1. Check connection string
+       ```go
+       // Verify connection string format
+       connStr := "postgres://user:password@host:port/dbname?sslmode=disable"
+       ```
+    
+    2. Test connection directly
+       ```go
+       // Test database connection
+       db, err := sql.Open("postgres", connStr)
+       if err != nil {
+           log.Fatalf("Failed to open DB: %v", err)
+       }
+       err = db.Ping()
+       if err != nil {
+           log.Fatalf("Failed to ping DB: %v", err)
+       }
+       ```
+    
+    3. Check database service status
+       ```bash
+       # Check if database is running
+       docker ps | grep postgres
+       ```
+    
+    4. Verify network connectivity
+       ```bash
+       # Test network connectivity
+       nc -zv database-host 5432
+       ```
+    
+    5. Implement connection retry logic
+       ```go
+       // Add retry logic for database connections
+       for i := 0; i < maxRetries; i++ {
+           db, err := sql.Open("postgres", connStr)
+           if err == nil {
+               err = db.Ping()
+               if err == nil {
+                   return db, nil
+               }
+           }
+           log.Printf("Database connection attempt %d failed: %v", i+1, err)
+           time.Sleep(time.Second * time.Duration(i+1))
+       }
+       ```
+  </Accordion>
+  
+  <Accordion title="Authentication/Authorization Issues">
+    **Issue: Authentication failing in Go services**
+    
+    **Symptoms:**
+    - Unauthorized errors
+    - Token validation failures
+    - Permission denied errors
+    
+    **Solutions:**
+    1. Check token validation logic
+       ```go
+       // Verify token parsing
+       token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+           // Validate signing method
+           if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+               return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+           }
+           return []byte(secret), nil
+       })
+       ```
+    
+    2. Debug token claims
+       ```go
+       // Log token claims
+       claims, ok := token.Claims.(jwt.MapClaims)
+       if ok && token.Valid {
+           log.Printf("Claims: %+v", claims)
+       }
+       ```
+    
+    3. Check token expiration
+       ```go
+       // Verify token expiration
+       expiresAt := time.Unix(int64(claims["exp"].(float64)), 0)
+       log.Printf("Token expires at: %v (now: %v)", expiresAt, time.Now())
+       ```
+    
+    4. Test with hardcoded token
+       ```go
+       // Use a known good token for testing
+       const testToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+       ```
+    
+    5. Verify authorization rules
+       ```go
+       // Log authorization checks
+       log.Printf("Checking if user %s has permission %s", userID, permission)
+       ```
+  </Accordion>
+  
+  <Accordion title="Concurrency Issues">
+    **Issue: Race conditions or deadlocks**
+    
+    **Symptoms:**
+    - Inconsistent behavior
+    - Hanging requests
+    - Unexpected values
+    
+    **Solutions:**
+    1. Run with race detector
+       ```bash
+       go run -race ./cmd/api
+       ```
+    
+    2. Use proper mutex locking
+       ```go
+       var mu sync.Mutex
+       
+       func UpdateData() {
+           mu.Lock()
+           defer mu.Unlock()
+           // Update shared data
+       }
+       ```
+    
+    3. Use atomic operations
+       ```go
+       // Use atomic operations for counters
+       atomic.AddInt64(&counter, 1)
+       ```
+    
+    4. Implement proper channel usage
+       ```go
+       // Use buffered channels when appropriate
+       ch := make(chan int, 10)
+       
+       // Always ensure channels are closed
+       defer close(ch)
+       ```
+    
+    5. Use context for cancellation
+       ```go
+       // Use context for timeout and cancellation
+       ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+       defer cancel()
+       
+       select {
+       case result := <-resultCh:
+           return result, nil
+       case <-ctx.Done():
+           return nil, ctx.Err()
+       }
+       ```
+  </Accordion>
+</AccordionGroup>
+
+### Next.js API Routes
+
+<AccordionGroup>
+  <Accordion title="API Route Issues">
+    **Issue: Next.js API routes not working**
+    
+    **Symptoms:**
+    - 404 or 500 errors
+    - Request timeouts
+    - Empty responses
+    
+    **Solutions:**
+    1. Check route handler implementation
+       ```typescript
+       // Make sure route handler is exported correctly
+       export async function GET(request: NextRequest) {
+         return NextResponse.json({ message: "Hello" });
+       }
+       ```
+    
+    2. Verify file naming and location
+       ```
+       // Ensure file is in the correct location:
+       // app/[locale]/api/example/route.ts
+       ```
+    
+    3. Test with simplified response
+       ```typescript
+       // Create simple test response
+       export async function GET() {
+         return new Response('Test response');
+       }
+       ```
+    
+    4. Check request methods
+       ```typescript
+       // Verify HTTP method implementations
+       export async function GET() { /* ... */ }
+       export async function POST() { /* ... */ }
+       ```
+    
+    5. Add logging
+       ```typescript
+       export async function GET(request: NextRequest) {
+         console.log('API route called:', request.url);
+         return NextResponse.json({ message: "Hello" });
+       }
+       ```
+  </Accordion>
+  
+  <Accordion title="Supabase Integration Issues">
+    **Issue: Supabase queries not working in API routes**
+    
+    **Symptoms:**
+    - Authentication errors
+    - Query failures
+    - Timeout errors
+    
+    **Solutions:**
+    1. Check Supabase client initialization
+       ```typescript
+       import { createClient } from '@/lib/supabase/server';
+       
+       export async function GET() {
+         const supabase = createClient();
+         // ...
+       }
+       ```
+    
+    2. Verify query syntax
+       ```typescript
+       const { data, error } = await supabase
+         .from('table')
+         .select('*')
+         .eq('column', value);
+         
+       if (error) {
+         console.error('Supabase error:', error);
+         return NextResponse.json({ error: error.message }, { status: 500 });
+       }
+       ```
+    
+    3. Check environment variables
+       ```
+       // Verify that these are set:
+       // NEXT_PUBLIC_SUPABASE_URL
+       // NEXT_PUBLIC_SUPABASE_ANON_KEY
+       ```
+    
+    4. Test with simple query
+       ```typescript
+       // Try a simple query to isolate issues
+       const { data, error } = await supabase
+         .from('simple_table')
+         .select('id, name');
+       ```
+    
+    5. Check RLS policies
+       ```
+       // Verify RLS policies in Supabase dashboard
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Database Issues
+
+### Supabase/PostgreSQL
+
+<AccordionGroup>
+  <Accordion title="Query Performance Issues">
+    **Issue: Slow database queries**
+    
+    **Symptoms:**
+    - Long response times
+    - Timeouts
+    - High database CPU usage
+    
+    **Solutions:**
+    1. Use EXPLAIN ANALYZE
+       ```sql
+       EXPLAIN ANALYZE
+       SELECT * FROM large_table WHERE condition = 'value';
+       ```
+    
+    2. Add appropriate indexes
+       ```sql
+       -- Create index on frequently queried columns
+       CREATE INDEX idx_large_table_condition ON large_table(condition);
+       ```
+    
+    3. Optimize query
+       ```sql
+       -- Instead of SELECT *
+       SELECT specific_column1, specific_column2
+       FROM large_table
+       WHERE condition = 'value'
+       LIMIT 100;
+       ```
+    
+    4. Use pagination
+       ```sql
+       SELECT *
+       FROM large_table
+       WHERE condition = 'value'
+       LIMIT 20 OFFSET 0;
+       ```
+    
+    5. Review table statistics
+       ```sql
+       -- Update statistics
+       ANALYZE large_table;
+       ```
+  </Accordion>
+  
+  <Accordion title="Migration Issues">
+    **Issue: Database migrations failing**
+    
+    **Symptoms:**
+    - Migration errors
+    - Schema inconsistencies
+    - Rollback failures
+    
+    **Solutions:**
+    1. Check migration logs
+       ```bash
+       # View migration logs
+       cat migration_log.txt
+       ```
+    
+    2. Verify migration script syntax
+       ```sql
+       -- Test migration script manually
+       BEGIN;
+       -- Run migration commands
+       ROLLBACK; -- Use COMMIT to apply
+       ```
+    
+    3. Check for dependencies
+       ```sql
+       -- Verify dependent objects exist
+       SELECT * FROM information_schema.tables
+       WHERE table_name = 'required_table';
+       ```
+    
+    4. Test in isolation
+       ```bash
+       # Run single migration
+       supabase db reset --db-url=$DEV_DB_URL
+       ```
+    
+    5. Manual intervention
+       ```sql
+       -- Fix schema manually
+       ALTER TABLE problematic_table ADD COLUMN missing_column TEXT;
+       ```
+  </Accordion>
+  
+  <Accordion title="Row Level Security Issues">
+    **Issue: RLS policies not working correctly**
+    
+    **Symptoms:**
+    - Access denied errors
+    - Data not showing up
+    - Unauthorized access
+    
+    **Solutions:**
+    1. Check policy definitions
+       ```sql
+       -- List policies for table
+       SELECT * FROM pg_policies WHERE tablename = 'your_table';
+       ```
+    
+    2. Test policy with specific user
+       ```sql
+       -- Test as specific user
+       SET LOCAL ROLE authenticated;
+       SET LOCAL "request.jwt.claims" = '{"sub": "user_id", "role": "authenticated"}';
+       
+       -- Try access
+       SELECT * FROM your_table;
+       ```
+    
+    3. Simplify policy for testing
+       ```sql
+       -- Create simple test policy
+       CREATE POLICY "test_policy" ON your_table
+         FOR SELECT USING (true);
+       ```
+    
+    4. Check authentication context
+       ```sql
+       -- Verify auth context
+       SELECT 
+         current_setting('request.jwt.claims', true) as claims,
+         auth.uid() as current_user;
+       ```
+    
+    5. Enable RLS debugging (if available)
+       ```sql
+       -- Enable RLS debug logs
+       ALTER SYSTEM SET log_statement = 'all';
+       SELECT pg_reload_conf();
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Deployment Issues
+
+### Vercel Deployment
+
+<AccordionGroup>
+  <Accordion title="Build Failures on Vercel">
+    **Issue: Vercel build failing**
+    
+    **Symptoms:**
+    - Build error notifications
+    - Deployment failure messages
+    - Application not updating
+    
+    **Solutions:**
+    1. Check build logs
+       ```
+       // Review full build logs in Vercel dashboard
+       ```
+    
+    2. Test build locally
+       ```bash
+       npm run build
+       ```
+    
+    3. Check environment variables
+       ```
+       // Verify environment variables are set correctly in Vercel
+       ```
+    
+    4. Update dependencies
+       ```bash
+       npm update
+       ```
+    
+    5. Check for Vercel-specific issues
+       ```
+       // Review Vercel documentation for platform-specific requirements
+       ```
+  </Accordion>
+  
+  <Accordion title="Runtime Errors After Deployment">
+    **Issue: Application errors in production**
+    
+    **Symptoms:**
+    - 500 errors in production
+    - Blank screens
+    - Features not working
+    
+    **Solutions:**
+    1. Check Vercel logs
+       ```
+       // Review function logs in Vercel dashboard
+       ```
+    
+    2. Use error monitoring
+       ```javascript
+       // Implement error tracking (e.g., Sentry)
+       import * as Sentry from '@sentry/nextjs';
+       
+       Sentry.captureException(error);
+       ```
+    
+    3. Test in preview deployments
+       ```
+       // Deploy to preview URL first to catch issues
+       ```
+    
+    4. Implement feature flags
+       ```javascript
+       // Use feature flags to gradually roll out changes
+       if (featureFlags.enableNewFeature) {
+         // New code
+       } else {
+         // Old code
+       }
+       ```
+    
+    5. Roll back if necessary
+       ```
+       // Use Vercel dashboard to roll back to previous deployment
+       ```
+  </Accordion>
+</AccordionGroup>
+
+### Docker/AWS Deployment
+
+<AccordionGroup>
+  <Accordion title="Container Startup Issues">
+    **Issue: Docker containers failing to start**
+    
+    **Symptoms:**
+    - Container exits immediately
+    - Health check failures
+    - Service unavailable
+    
+    **Solutions:**
+    1. Check container logs
+       ```bash
+       aws logs get-log-events --log-group-name /ecs/service --log-stream-name container/id
+       ```
+    
+    2. Verify environment variables
+       ```bash
+       # Check environment variables
+       aws ecs describe-task-definition --task-definition service-task
+       ```
+    
+    3. Test container locally
+       ```bash
+       docker run --rm -p 8080:8080 service-image
+       ```
+    
+    4. Check for permission issues
+       ```bash
+       # Use appropriate permissions in Dockerfile
+       USER nonroot
+       ```
+    
+    5. Implement better logging
+       ```go
+       // Add detailed startup logs
+       log.Printf("Starting service with config: %+v", config)
+       ```
+  </Accordion>
+  
+  <Accordion title="ECS Service Deployment Issues">
+    **Issue: ECS service deployment failing**
+    
+    **Symptoms:**
+    - Failed deployments
+    - Service stuck in updating
+    - Health checks failing
+    
+    **Solutions:**
+    1. Check ECS service events
+       ```bash
+       aws ecs describe-services --cluster cluster-name --services service-name
+       ```
+    
+    2. Verify task definition
+       ```bash
+       aws ecs describe-task-definition --task-definition task-def
+       ```
+    
+    3. Check container health checks
+       ```
+       # Review health check configuration
+       ```
+    
+    4. Test task manually
+       ```bash
+       aws ecs run-task --cluster cluster-name --task-definition task-def
+       ```
+    
+    5. Check networking configuration
+       ```bash
+       # Verify security groups and subnets
+       aws ecs describe-services --cluster cluster-name --services service-name
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Automation Issues
+
+### Zapier/Pabbly
+
+<AccordionGroup>
+  <Accordion title="Automation Workflow Failures">
+    **Issue: Zapier/Pabbly workflows failing**
+    
+    **Symptoms:**
+    - Task failures
+    - Missing data
+    - Workflow errors
+    
+    **Solutions:**
+    1. Check workflow logs
+       ```
+       // Review task history in Zapier/Pabbly dashboard
+       ```
+    
+    2. Test with sample data
+       ```
+       // Use Zapier's "Test" feature with sample data
+       ```
+    
+    3. Check for API changes
+       ```
+       // Verify API endpoints haven't changed
+       ```
+    
+    4. Check authentication
+       ```
+       // Re-authenticate app connections
+       ```
+    
+    5. Simplify workflow for testing
+       ```
+       // Create simplified test workflow
+       ```
+  </Accordion>
+  
+  <Accordion title="High Task Consumption">
+    **Issue: Excessive automation task usage**
+    
+    **Symptoms:**
+    - Task limit warnings
+    - High costs
+    - Rapid task consumption
+    
+    **Solutions:**
+    1. Review task usage
+       ```
+       // Check task usage in Zapier/Pabbly dashboard
+       ```
+    
+    2. Identify high-volume workflows
+       ```
+       // Find workflows consuming most tasks
+       ```
+    
+    3. Add filters
+       ```
+       // Add conditions to prevent unnecessary triggers
+       ```
+    
+    4. Batch operations
+       ```
+       // Use batch actions instead of individual actions
+       ```
+    
+    5. Consolidate workflows
+       ```
+       // Combine multiple workflows into one
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Performance Issues
+
+<AccordionGroup>
+  <Accordion title="Slow API Response Time">
+    **Issue: API endpoints responding slowly**
+    
+    **Symptoms:**
+    - High latency
+    - Timeouts
+    - Poor application performance
+    
+    **Solutions:**
+    1. Profile the API
+       ```go
+       // Add timing logs
+       start := time.Now()
+       // Operation
+       log.Printf("Operation took %v", time.Since(start))
+       ```
+    
+    2. Optimize database queries
+       ```go
+       // Use indexes and limit results
+       rows, err := db.Query("SELECT * FROM table WHERE indexed_column = $1 LIMIT 100", value)
+       ```
+    
+    3. Implement caching
+       ```go
+       // Add Redis caching
+       cacheKey := fmt.Sprintf("resource:%s", id)
+       
+       // Try to get from cache
+       if cachedData, err := redisClient.Get(cacheKey).Result(); err == nil {
+           return cachedData, nil
+       }
+       
+       // Get from database
+       data, err := getFromDatabase(id)
+       if err != nil {
+           return nil, err
+       }
+       
+       // Store in cache
+       redisClient.Set(cacheKey, data, 5*time.Minute)
+       ```
+    
+    4. Use connection pooling
+       ```go
+       // Configure connection pool
+       db.SetMaxOpenConns(25)
+       db.SetMaxIdleConns(25)
+       db.SetConnMaxLifetime(5*time.Minute)
+       ```
+    
+    5. Implement pagination
+       ```go
+       // Add pagination to heavy endpoints
+       limit := 20
+       offset := (page - 1) * limit
+       ```
+  </Accordion>
+  
+  <Accordion title="Memory Leaks">
+    **Issue: Application memory usage growing over time**
+    
+    **Symptoms:**
+    - Increasing memory consumption
+    - Out of memory errors
+    - Application crashes
+    
+    **Solutions:**
+    1. Take memory profiles
+       ```go
+       import "runtime/pprof"
+       
+       // Create memory profile
+       f, err := os.Create("memprofile.pprof")
+       if err != nil {
+           log.Fatal(err)
+       }
+       defer f.Close()
+       
+       pprof.WriteHeapProfile(f)
+       ```
+    
+    2. Analyze with pprof
+       ```bash
+       go tool pprof -http=:8080 memprofile.pprof
+       ```
+    
+    3. Check for resource leaks
+       ```go
+       // Ensure resources are properly closed
+       file, err := os.Open("file.txt")
+       if err != nil {
+           return err
+       }
+       defer file.Close() // Important!
+       ```
+    
+    4. Monitor goroutines
+       ```go
+       // Log number of goroutines
+       log.Printf("Number of goroutines: %d", runtime.NumGoroutine())
+       ```
+    
+    5. Implement memory limits
+       ```go
+       // Set memory limits for containerized applications
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## External Integrations Issues
+
+<AccordionGroup>
+  <Accordion title="Jobber API Integration Issues">
+    **Issue: Jobber GraphQL API problems**
+    
+    **Symptoms:**
+    - Query errors
+    - Authentication failures
+    - Missing data
+    
+    **Solutions:**
+    1. Check API credentials
+       ```
+       // Verify API tokens are valid
+       ```
+    
+    2. Debug GraphQL queries
+       ```graphql
+       # Test simplified query
+       query {
+         viewer {
+           __typename
+         }
+       }
+       ```
+    
+    3. Check for API changes
+       ```
+       // Review Jobber API changelog
+       ```
+    
+    4. Test with GraphQL playground
+       ```
+       // Use GraphQL playground to test queries
+       ```
+    
+    5. Implement retry logic
+       ```go
+       // Add retry logic for transient errors
+       for i := 0; i < maxRetries; i++ {
+           response, err := client.Query(ctx, query, variables)
+           if err == nil {
+               return response, nil
+           }
+           
+           log.Printf("GraphQL query attempt %d failed: %v", i+1, err)
+           time.Sleep(time.Second * time.Duration(i+1))
+       }
+       ```
+  </Accordion>
+  
+  <Accordion title="Pipedrive CRM Integration Issues">
+    **Issue: Pipedrive API integration problems**
+    
+    **Symptoms:**
+    - API errors
+    - Data synchronization issues
+    - Webhook failures
+    
+    **Solutions:**
+    1. Check API token
+       ```
+       // Verify Pipedrive API token is valid
+       ```
+    
+    2. Test simple API call
+       ```bash
+       curl -X GET \
+         'https://api.pipedrive.com/v1/deals?api_token=YOUR_API_TOKEN'
+       ```
+    
+    3. Check rate limits
+       ```
+       // Review rate limit headers in API responses
+       ```
+    
+    4. Verify webhook URLs
+       ```
+       // Ensure webhook URLs are accessible
+       ```
+    
+    5. Test webhooks manually
+       ```
+       // Use Pipedrive webhook testing tool
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Environment Issues
+
+<AccordionGroup>
+  <Accordion title="Environment Variable Misconfigurations">
+    **Issue: Missing or incorrect environment variables**
+    
+    **Symptoms:**
+    - Configuration errors
+    - Authentication failures
+    - Feature failures
+    
+    **Solutions:**
+    1. Check environment variables
+       ```bash
+       # List all environment variables
+       env | grep APP_
+       ```
+    
+    2. Verify in code
+       ```javascript
+       // Add debugging output
+       console.log('Environment variables:', {
+         API_URL: process.env.API_URL,
+         DATABASE_URL: process.env.DATABASE_URL?.substring(0, 10) + '...',
+       });
+       ```
+    
+    3. Test with hardcoded values
+       ```javascript
+       // Temporarily use hardcoded values for testing
+       const apiUrl = process.env.API_URL || 'http://localhost:8080';
+       ```
+    
+    4. Check deployment settings
+       ```
+       // Verify environment variables in deployment platforms
+       ```
+    
+    5. Implement validation
+       ```javascript
+       // Validate required environment variables on startup
+       function validateEnv() {
+         const required = ['API_KEY', 'DATABASE_URL'];
+         const missing = required.filter(key => !process.env[key]);
+         
+         if (missing.length > 0) {
+           throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+         }
+       }
+       ```
+  </Accordion>
+  
+  <Accordion title="Cross-Environment Inconsistencies">
+    **Issue: Behavior differs between environments**
+    
+    **Symptoms:**
+    - Works in development but not production
+    - Environment-specific bugs
+    - Configuration differences
+    
+    **Solutions:**
+    1. Compare environment configurations
+       ```
+       // Document and compare all environment variables
+       ```
+    
+    2. Check for environment-specific code
+       ```javascript
+       // Look for code like this
+       if (process.env.NODE_ENV === 'development') {
+         // Development-only code
+       } else {
+         // Production code
+       }
+       ```
+    
+    3. Use environment detection utility
+       ```javascript
+       // Create consistent environment detection
+       export function getEnvironment() {
+         if (process.env.NODE_ENV === 'development') {
+           return 'development';
+         }
+         
+         const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+         
+         if (hostname.includes('staging') || hostname.includes('test')) {
+           return 'staging';
+         }
+         
+         return 'production';
+       }
+       ```
+    
+    4. Test in similar environments
+       ```
+       // Use Docker to create similar environments
+       ```
+    
+    5. Document environment differences
+       ```
+       // Create environment comparison documentation
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## When to Escalate
+
+While many issues can be resolved through troubleshooting, some situations require escalation:
+
+1. **Security incidents** - Any suspected security breach should be immediately escalated
+2. **Production outages** - Issues affecting multiple users in production environment
+3. **Data integrity issues** - Problems that could result in data corruption or loss
+4. **Third-party service outages** - Issues with external dependencies beyond our control
+5. **Complex issues** - Problems that remain unresolved after initial troubleshooting
+
+### Escalation Process
+
+<Steps>
+  <Step title="Document the issue">
+    Gather all relevant information about the problem, including:
+    - Detailed description
+    - Steps to reproduce
+    - Error messages
+    - Troubleshooting steps already attempted
+  </Step>
+  
+  <Step title="Determine severity level">
+    Assess the impact and urgency:
+    - **Critical:** Production system down or unusable
+    - **High:** Major feature unavailable, workaround not possible
+    - **Medium:** Feature partially working, workaround available
+    - **Low:** Minor issue, minimal impact
+  </Step>
+  
+  <Step title="Contact appropriate team">
+    Based on the issue type:
+    - Frontend issues: Contact frontend team in #frontend Slack channel
+    - Backend issues: Contact backend team in #backend Slack channel
+    - Infrastructure issues: Contact DevOps team in #devops Slack channel
+    - Data issues: Contact data team in #data Slack channel
+  </Step>
+  
+  <Step title="Follow up">
+    Monitor the issue and provide additional information as needed
+  </Step>
+</Steps>
+
+## Additional Resources
+
+<CardGroup cols={2}>
+  <Card title="Monitoring Dashboards" icon="chart-line">
+    Access to system monitoring dashboards.
+    
+    [View Dashboards](https://monitoring.duraclim.com)
+  </Card>
+  
+  <Card title="Log Management" icon="clipboard-list">
+    Centralized logs for all applications.
+    
+    [View Logs](https://logs.duraclim.com)
+  </Card>
+  
+  <Card title="Internal Documentation" icon="folder-open">
+    System architecture and design documentation.
+    
+    [View Documentation](https://confluence.duraclim.com)
+  </Card>
+  
+  <Card title="Error Tracking" icon="bug">
+    Error monitoring and alerting system.
+    
+    [View Errors](https://sentry.duraclim.com)
+  </Card>
+</CardGroup>
+
+## Support Channels
+
+<AccordionGroup>
+  <Accordion title="Slack Channels">
+    - **#it-help** - General IT support requests
+    - **#frontend-support** - Frontend-specific issues
+    - **#backend-support** - Backend-specific issues
+    - **#devops-support** - Infrastructure and deployment issues
+    - **#incident-response** - Active incident management
+  </Accordion>
+  
+  <Accordion title="On-Call Schedule">
+    We maintain an on-call rotation for urgent issues outside of business hours:
+    
+    - Primary on-call: Handles initial response and triage
+    - Secondary on-call: Provides backup and specialized expertise
+    
+    [View On-Call Schedule](https://oncall.duraclim.com)
+  </Accordion>
+  
+  <Accordion title="External Support">
+    - **Supabase Support:** [support@supabase.io](mailto:support@supabase.io)
+    - **AWS Support:** Access via AWS Console
+    - **Vercel Support:** [support@vercel.com](mailto:support@vercel.com)
+    - **Jobber API Support:** [api-support@getjobber.com](mailto:api-support@getjobber.com)
+  </Accordion>
+</AccordionGroup>

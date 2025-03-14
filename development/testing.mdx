@@ -1,0 +1,893 @@
+---
+title: Testing Standards
+description: Guidelines and best practices for writing and maintaining tests across Duraclim projects
+icon: vial
+---
+
+# Testing Standards
+
+Comprehensive testing is essential for maintaining code quality, preventing regressions, and facilitating safe refactoring. This document outlines our testing standards, methodologies, and best practices across different project types.
+
+<Frame>
+  <img src="/images/testing-pyramid.png" alt="Testing Pyramid" className="rounded-lg" />
+</Frame>
+
+## Testing Philosophy
+
+Our testing approach follows these core principles:
+
+1. **Test First** - When possible, write tests before implementing features (TDD approach)
+2. **Balanced Coverage** - Balance test coverage with development velocity
+3. **Maintainable Tests** - Tests should be easy to understand and maintain
+4. **Fast Feedback** - Tests should run quickly to provide fast feedback
+5. **Realistic Testing** - Test real user scenarios and edge cases
+
+## Testing Pyramid
+
+We structure our testing efforts according to the testing pyramid:
+
+<AccordionGroup>
+  <Accordion title="Unit Tests (Foundation)">
+    - Test individual functions, methods, and classes in isolation
+    - Should comprise the majority of tests (70-80%)
+    - Fast to execute, providing immediate feedback
+    - Focus on logic rather than integration points
+  </Accordion>
+  
+  <Accordion title="Integration Tests (Middle)">
+    - Test how components work together
+    - Verify interactions between different parts of the system
+    - Test database operations, API calls, and external service interactions
+    - Comprise about 15-20% of tests
+  </Accordion>
+  
+  <Accordion title="End-to-End Tests (Top)">
+    - Test the entire application from a user perspective
+    - Simulate real user scenarios across the application
+    - Focus on critical user journeys
+    - Fewer in number (5-10% of tests) but high in value
+  </Accordion>
+</AccordionGroup>
+
+## Testing Tools
+
+We use different testing tools depending on the project type:
+
+### JavaScript/TypeScript Testing Tools
+
+<CardGroup cols={2}>
+  <Card title="Jest" icon="jest">
+    Primary testing framework for JavaScript/TypeScript unit and integration tests
+    
+    **Documentation**: [Jest Docs](https://jestjs.io/docs/getting-started)
+  </Card>
+  
+  <Card title="React Testing Library" icon="react">
+    For testing React components
+    
+    **Documentation**: [RTL Docs](https://testing-library.com/docs/react-testing-library/intro/)
+  </Card>
+  
+  <Card title="Playwright" icon="browser">
+    For end-to-end browser testing
+    
+    **Documentation**: [Playwright Docs](https://playwright.dev/docs/intro)
+  </Card>
+  
+  <Card title="Vitest" icon="vial">
+    For faster unit tests in Vite-based projects
+    
+    **Documentation**: [Vitest Docs](https://vitest.dev/guide/)
+  </Card>
+</CardGroup>
+
+### Go Testing Tools
+
+<CardGroup cols={2}>
+  <Card title="Built-in testing package" icon="golang">
+    Go's standard library testing package
+    
+    **Documentation**: [Go Testing Package](https://golang.org/pkg/testing/)
+  </Card>
+  
+  <Card title="Testify" icon="check-double">
+    Assertion toolkit for more expressive tests
+    
+    **Documentation**: [Testify](https://github.com/stretchr/testify)
+  </Card>
+  
+  <Card title="go-sqlmock" icon="database">
+    For mocking database interactions
+    
+    **Documentation**: [go-sqlmock](https://github.com/DATA-DOG/go-sqlmock)
+  </Card>
+  
+  <Card title="httptest" icon="server">
+    For testing HTTP handlers
+    
+    **Documentation**: [httptest Package](https://golang.org/pkg/net/http/httptest/)
+  </Card>
+</CardGroup>
+
+## Unit Testing Standards
+
+### JavaScript/TypeScript Unit Tests
+
+Unit tests should follow the AAA pattern (Arrange, Act, Assert):
+
+```typescript
+// Path: tests/unit/utils/calculator.test.ts
+import { calculateTotal } from '@/utils/calculator';
+
+describe('calculateTotal', () => {
+  it('should calculate the total with tax correctly', () => {
+    // Arrange
+    const items = [
+      { price: 100, quantity: 2 },
+      { price: 50, quantity: 1 }
+    ];
+    const taxRate = 0.1; // 10% tax
+    
+    // Act
+    const result = calculateTotal(items, taxRate);
+    
+    // Assert
+    expect(result).toBe(275); // (100*2 + 50*1) * 1.1 = 275
+  });
+  
+  it('should return 0 for empty items', () => {
+    expect(calculateTotal([], 0.1)).toBe(0);
+  });
+  
+  it('should handle negative prices correctly', () => {
+    const items = [
+      { price: 100, quantity: 1 },
+      { price: -20, quantity: 1 } // Discount
+    ];
+    
+    expect(calculateTotal(items, 0.1)).toBe(88); // (100 - 20) * 1.1 = 88
+  });
+});
+```
+
+### React Component Tests
+
+When testing React components:
+
+```typescript
+// Path: tests/unit/components/Button.test.tsx
+import { render, screen, fireEvent } from '@testing-library/react';
+import { Button } from '@/components/ui/Button';
+
+describe('Button', () => {
+  it('should render correctly', () => {
+    render(<Button>Click me</Button>);
+    
+    expect(screen.getByRole('button')).toHaveTextContent('Click me');
+  });
+  
+  it('should call onClick when clicked', () => {
+    const handleClick = jest.fn();
+    
+    render(<Button onClick={handleClick}>Click me</Button>);
+    
+    fireEvent.click(screen.getByRole('button'));
+    
+    expect(handleClick).toHaveBeenCalledTimes(1);
+  });
+  
+  it('should be disabled when disabled prop is true', () => {
+    render(<Button disabled>Click me</Button>);
+    
+    expect(screen.getByRole('button')).toBeDisabled();
+  });
+});
+```
+
+### Go Unit Tests
+
+```go
+// Path: internal/calculator/calculator_test.go
+package calculator
+
+import (
+    "testing"
+    
+    "github.com/stretchr/testify/assert"
+)
+
+func TestCalculateTotal(t *testing.T) {
+    t.Run("should calculate total with tax correctly", func(t *testing.T) {
+        // Arrange
+        items := []Item{
+            {Price: 100, Quantity: 2},
+            {Price: 50, Quantity: 1},
+        }
+        taxRate := 0.1 // 10% tax
+        
+        // Act
+        result := CalculateTotal(items, taxRate)
+        
+        // Assert
+        assert.Equal(t, float64(275), result)
+    })
+    
+    t.Run("should return 0 for empty items", func(t *testing.T) {
+        result := CalculateTotal([]Item{}, 0.1)
+        assert.Equal(t, float64(0), result)
+    })
+    
+    t.Run("should handle negative prices correctly", func(t *testing.T) {
+        items := []Item{
+            {Price: 100, Quantity: 1},
+            {Price: -20, Quantity: 1}, // Discount
+        }
+        
+        result := CalculateTotal(items, 0.1)
+        assert.Equal(t, float64(88), result)
+    })
+}
+```
+
+### Unit Testing Best Practices
+
+<AccordionGroup>
+  <Accordion title="Focus on behavior, not implementation">
+    Test what the code does, not how it's implemented. This allows for refactoring without breaking tests.
+    
+    ```typescript
+    // Bad: Testing implementation details
+    expect(component.internalState.isLoading).toBe(false);
+    
+    // Good: Testing observable behavior
+    expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    ```
+  </Accordion>
+  
+  <Accordion title="Use descriptive test names">
+    Test names should clearly describe what's being tested and the expected outcome.
+    
+    ```typescript
+    // Bad
+    it('works correctly', () => {
+      // ...
+    });
+    
+    // Good
+    it('should apply discount when promo code is valid', () => {
+      // ...
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="Isolate tests">
+    Tests should not depend on each other. Each test should be able to run independently.
+    
+    ```typescript
+    // Bad: Shared state between tests
+    let user;
+    
+    beforeEach(() => {
+      user = createUser();
+    });
+    
+    it('test 1', () => {
+      user.name = 'John';
+      expect(user.name).toBe('John');
+    });
+    
+    it('test 2', () => {
+      // This assumes user.name is still in the default state
+      expect(user.name).toBe('Default'); // Might fail if test 1 runs first
+    });
+    
+    // Good: Each test creates its own state
+    it('test 1', () => {
+      const user = createUser();
+      user.name = 'John';
+      expect(user.name).toBe('John');
+    });
+    
+    it('test 2', () => {
+      const user = createUser();
+      expect(user.name).toBe('Default');
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="Use mocks judiciously">
+    Mock external dependencies, but be careful not to over-mock.
+    
+    ```typescript
+    // Good use of mocking
+    it('should handle API errors', async () => {
+      // Mock the API to simulate an error
+      apiClient.getUser.mockRejectedValueOnce(new Error('Network error'));
+      
+      await expect(userService.fetchUser(1)).rejects.toThrow('Network error');
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Integration Testing
+
+Integration tests verify that different parts of the system work together correctly.
+
+### API Integration Tests (Next.js)
+
+```typescript
+// Path: tests/integration/api/users.test.ts
+import { createMocks } from 'node-mocks-http';
+import { GET, POST } from '@/app/api/users/route';
+import { createClient } from '@/lib/supabase/server';
+
+// Mock Supabase client
+jest.mock('@/lib/supabase/server', () => ({
+  createClient: jest.fn(),
+}));
+
+describe('Users API', () => {
+  beforeEach(() => {
+    // Reset the mock before each test
+    jest.clearAllMocks();
+  });
+  
+  it('should return users when GET is called', async () => {
+    // Mock Supabase response
+    createClient.mockReturnValue({
+      from: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          data: [
+            { id: 1, name: 'John Doe' },
+            { id: 2, name: 'Jane Smith' }
+          ],
+          error: null
+        })
+      })
+    });
+    
+    // Create mock request
+    const { req } = createMocks({
+      method: 'GET',
+    });
+    
+    // Call the API handler
+    const response = await GET(req);
+    const data = await response.json();
+    
+    // Assert the response
+    expect(response.status).toBe(200);
+    expect(data.users).toHaveLength(2);
+    expect(data.users[0].name).toBe('John Doe');
+  });
+  
+  it('should create a user when POST is called with valid data', async () => {
+    // Mock Supabase response
+    createClient.mockReturnValue({
+      from: jest.fn().mockReturnValue({
+        insert: jest.fn().mockReturnValue({
+          select: jest.fn().mockReturnValue({
+            data: [{ id: 3, name: 'New User' }],
+            error: null
+          })
+        })
+      })
+    });
+    
+    // Create mock request with body
+    const { req } = createMocks({
+      method: 'POST',
+      body: { name: 'New User', email: 'new@example.com' },
+    });
+    
+    // Call the API handler
+    const response = await POST(req);
+    const data = await response.json();
+    
+    // Assert the response
+    expect(response.status).toBe(201);
+    expect(data.user.name).toBe('New User');
+  });
+});
+```
+
+### Database Integration Tests (Go)
+
+```go
+// Path: internal/user/repository_test.go
+package user
+
+import (
+    "context"
+    "testing"
+    
+    "github.com/stretchr/testify/assert"
+    "github.com/duraclim/go-reschedule-client/internal/db"
+)
+
+func TestUserRepository_Integration(t *testing.T) {
+    // Skip if short test mode
+    if testing.Short() {
+        t.Skip("Skipping integration test in short mode")
+    }
+    
+    // Set up test database connection
+    testDB, err := db.ConnectTestDB()
+    if err != nil {
+        t.Fatalf("Failed to connect to test database: %v", err)
+    }
+    defer testDB.Close()
+    
+    // Set up repository with test DB
+    repo := NewUserRepository(testDB)
+    
+    // Clean up after the test
+    t.Cleanup(func() {
+        _, _ = testDB.Exec("DELETE FROM users WHERE email = $1", "test@example.com")
+    })
+    
+    t.Run("should create and retrieve a user", func(t *testing.T) {
+        ctx := context.Background()
+        
+        // Create a user
+        user := User{
+            Name:  "Test User",
+            Email: "test@example.com",
+            Role:  "user",
+        }
+        
+        createdUser, err := repo.CreateUser(ctx, user)
+        assert.NoError(t, err)
+        assert.NotZero(t, createdUser.ID)
+        assert.Equal(t, user.Name, createdUser.Name)
+        
+        // Retrieve the user
+        retrievedUser, err := repo.GetUserByID(ctx, createdUser.ID)
+        assert.NoError(t, err)
+        assert.Equal(t, createdUser.ID, retrievedUser.ID)
+        assert.Equal(t, user.Name, retrievedUser.Name)
+        assert.Equal(t, user.Email, retrievedUser.Email)
+    })
+}
+```
+
+## End-to-End Testing
+
+End-to-end tests simulate real user interactions with the application.
+
+### Playwright E2E Tests
+
+```typescript
+// Path: tests/e2e/auth.spec.ts
+import { test, expect } from '@playwright/test';
+
+test.describe('Authentication', () => {
+  test('should allow users to log in', async ({ page }) => {
+    // Navigate to login page
+    await page.goto('/login');
+    
+    // Fill in credentials
+    await page.fill('input[name="email"]', 'test@example.com');
+    await page.fill('input[name="password"]', 'password123');
+    
+    // Click login button
+    await page.click('button[type="submit"]');
+    
+    // Verify redirect to dashboard
+    await expect(page).toHaveURL('/dashboard');
+    
+    // Verify user is logged in
+    await expect(page.locator('.user-name')).toContainText('Test User');
+  });
+  
+  test('should show error for invalid credentials', async ({ page }) => {
+    // Navigate to login page
+    await page.goto('/login');
+    
+    // Fill in invalid credentials
+    await page.fill('input[name="email"]', 'test@example.com');
+    await page.fill('input[name="password"]', 'wrongpassword');
+    
+    // Click login button
+    await page.click('button[type="submit"]');
+    
+    // Verify error message
+    await expect(page.locator('.error-message')).toContainText('Invalid email or password');
+    
+    // Verify still on login page
+    await expect(page).toHaveURL('/login');
+  });
+});
+```
+
+### E2E Testing Best Practices
+
+1. **Focus on critical paths** - Test the most important user journeys first
+2. **Use realistic data** - Create test data that reflects real-world scenarios
+3. **Isolate tests** - Each test should be independent and not rely on other tests
+4. **Handle asynchronous operations** - Wait for elements and network requests appropriately
+5. **Take screenshots on failure** - Capture the state when tests fail for easier debugging
+
+## Test Coverage
+
+We use code coverage tools to measure how much of our code is covered by tests:
+
+- **Jest Coverage** for JavaScript/TypeScript
+- **go test -cover** for Go
+
+### Coverage Targets
+
+While we don't enforce strict coverage percentages, we aim for the following targets:
+
+<table>
+  <thead>
+    <tr>
+      <th>Code Type</th>
+      <th>Target Coverage</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Core business logic</td>
+      <td>80-100%</td>
+    </tr>
+    <tr>
+      <td>API endpoints</td>
+      <td>70-90%</td>
+    </tr>
+    <tr>
+      <td>UI components</td>
+      <td>60-80%</td>
+    </tr>
+    <tr>
+      <td>Utility functions</td>
+      <td>80-100%</td>
+    </tr>
+  </tbody>
+</table>
+
+### Coverage Reports
+
+When running tests in CI, coverage reports are generated and stored as artifacts. These reports help identify areas of the codebase that need more testing.
+
+```bash
+# JavaScript/TypeScript
+npm run test:coverage
+
+# Go
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out -o coverage.html
+```
+
+<Frame>
+  <img src="/images/coverage-report.png" alt="Code Coverage Report" className="rounded-lg" />
+</Frame>
+
+## Test Doubles (Mocks, Stubs, Spies)
+
+Test doubles are useful for isolating the code under test from its dependencies. Here are guidelines for using them effectively:
+
+### JavaScript/TypeScript Test Doubles
+
+```typescript
+// Mocking a module
+jest.mock('@/lib/api-client', () => ({
+  fetchUser: jest.fn(),
+}));
+
+// Stubbing a return value
+import { fetchUser } from '@/lib/api-client';
+(fetchUser as jest.Mock).mockResolvedValue({ id: 1, name: 'John' });
+
+// Spying on a method
+const spy = jest.spyOn(console, 'log');
+expect(spy).toHaveBeenCalledWith('Hello');
+```
+
+### Go Test Doubles
+
+```go
+// Creating a mock repository
+type MockUserRepository struct {
+    mock.Mock
+}
+
+func (m *MockUserRepository) GetUserByID(ctx context.Context, id string) (*User, error) {
+    args := m.Called(ctx, id)
+    return args.Get(0).(*User), args.Error(1)
+}
+
+// Using the mock
+mockRepo := new(MockUserRepository)
+mockRepo.On("GetUserByID", mock.Anything, "123").Return(&User{ID: "123", Name: "Test"}, nil)
+
+// Create service with mock repository
+service := NewUserService(mockRepo)
+
+// Call the method that uses the repository
+user, err := service.GetUserDetails(context.Background(), "123")
+
+// Verify the mock was called
+mockRepo.AssertExpectations(t)
+```
+
+## Testing in CI/CD
+
+All tests are run as part of our CI/CD pipeline:
+
+1. **Unit tests** run on every commit
+2. **Integration tests** run on pull requests
+3. **End-to-end tests** run on pull requests to main/master branches
+
+### GitHub Actions Configuration
+
+```yaml
+# Path: .github/workflows/test.yml
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Run linting
+        run: npm run lint
+        
+      - name: Run unit tests
+        run: npm run test:unit
+        
+      - name: Run integration tests
+        run: npm run test:integration
+        
+      - name: Run E2E tests
+        run: npm run test:e2e
+        
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: coverage/
+```
+
+## Testing Best Practices
+
+### General Best Practices
+
+1. **Write tests first (TDD)** when possible
+2. **Keep tests simple and focused**
+3. **Use descriptive test names**
+4. **Don't test implementation details**
+5. **Test edge cases and error scenarios**
+6. **Make tests deterministic** (no random behavior or time dependencies)
+7. **Don't test third-party code**
+8. **Maintain test code quality** (treat test code like production code)
+
+### Project-Specific Guidelines
+
+#### Next.js Testing
+
+- Use React Testing Library for component tests
+- Test pages with server components and client components
+- Test API routes with mock request/response objects
+- Use MSW (Mock Service Worker) for mocking API calls in browser environments
+
+#### Go Testing
+
+- Use table-driven tests for testing multiple scenarios
+- Use subtests for organizing related tests
+- Leverage interfaces for easier mocking
+- Use `httptest` package for HTTP handler testing
+
+## Test Data Management
+
+### Test Fixtures
+
+We use test fixtures to prepare consistent test data:
+
+```typescript
+// Path: tests/fixtures/users.ts
+export const testUsers = [
+  {
+    id: '1',
+    name: 'John Doe',
+    email: 'john@example.com',
+    role: 'admin',
+  },
+  {
+    id: '2',
+    name: 'Jane Smith',
+    email: 'jane@example.com',
+    role: 'user',
+  }
+];
+```
+
+### Test Databases
+
+For integration tests that require a database:
+
+1. Use a dedicated test database (never the production database)
+2. Reset the database state before each test suite
+3. Use transactions to isolate test cases when possible
+4. Use fixtures or factories to create test data
+
+```go
+// Path: internal/db/test_helpers.go
+package db
+
+import (
+    "database/sql"
+)
+
+// ConnectTestDB connects to the test database
+func ConnectTestDB() (*sql.DB, error) {
+    // Connect to test database
+    db, err := sql.Open("postgres", "postgres://user:password@localhost:5432/testdb?sslmode=disable")
+    if err != nil {
+        return nil, err
+    }
+    
+    // Reset database state
+    _, err = db.Exec("TRUNCATE users, orders CASCADE")
+    if err != nil {
+        db.Close()
+        return nil, err
+    }
+    
+    return db, nil
+}
+```
+
+## Testing Complex Scenarios
+
+### Testing Asynchronous Code
+
+```typescript
+// JavaScript/TypeScript
+it('should resolve after a delay', async () => {
+  const start = Date.now();
+  await delayFunction(100);
+  const elapsed = Date.now() - start;
+  
+  expect(elapsed).toBeGreaterThanOrEqual(95); // Allow for small timing discrepancies
+});
+```
+
+### Testing Redux/State Management
+
+```typescript
+import { configureStore } from '@reduxjs/toolkit';
+import { userReducer } from '@/store/userSlice';
+
+it('should update user state on login', () => {
+  // Create a test store
+  const store = configureStore({
+    reducer: {
+      user: userReducer,
+    },
+  });
+  
+  // Dispatch the login action
+  store.dispatch({
+    type: 'user/login',
+    payload: { id: '1', name: 'John' },
+  });
+  
+  // Get the updated state
+  const state = store.getState();
+  
+  // Assert the state was updated correctly
+  expect(state.user.isLoggedIn).toBe(true);
+  expect(state.user.data.name).toBe('John');
+});
+```
+
+### Testing File Uploads
+
+```typescript
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { FileUploader } from '@/components/FileUploader';
+
+it('should handle file upload', async () => {
+  // Mock the file upload API
+  const uploadFileMock = jest.fn().mockResolvedValue({ url: 'https://example.com/file.pdf' });
+  
+  // Render the component
+  render(<FileUploader onUpload={uploadFileMock} />);
+  
+  // Create a test file
+  const file = new File(['file content'], 'test.pdf', { type: 'application/pdf' });
+  
+  // Simulate file selection
+  const input = screen.getByLabelText(/choose file/i);
+  Object.defineProperty(input, 'files', {
+    value: [file],
+    writable: false,
+  });
+  fireEvent.change(input);
+  
+  // Simulate upload button click
+  fireEvent.click(screen.getByText(/upload/i));
+  
+  // Wait for upload to complete
+  await waitFor(() => {
+    expect(uploadFileMock).toHaveBeenCalledWith(file);
+  });
+  
+  // Verify success message
+  expect(screen.getByText(/upload successful/i)).toBeInTheDocument();
+});
+```
+
+## Troubleshooting Common Test Issues
+
+<AccordionGroup>
+  <Accordion title="Tests are flaky (sometimes pass, sometimes fail)">
+    Common causes:
+    - Time-dependent code (use jest.useFakeTimers())
+    - Order-dependent tests (make tests independent)
+    - Race conditions (proper async/await handling)
+    - External dependencies (use reliable mocks)
+  </Accordion>
+  
+  <Accordion title="Tests are slow">
+    Solutions:
+    - Run tests in parallel
+    - Mock expensive operations
+    - Use faster alternatives (e.g., Vitest instead of Jest)
+    - Run only relevant tests during development
+  </Accordion>
+  
+  <Accordion title="Tests fail in CI but pass locally">
+    Potential issues:
+    - Environment differences (use Docker for consistency)
+    - Different timezone/locale settings
+    - Resource constraints in CI
+    - Random seed issues (fix the random seed)
+  </Accordion>
+  
+  <Accordion title="Mocks not working as expected">
+    Troubleshooting steps:
+    - Verify mock is set up before the code under test runs
+    - Check import paths (jest.mock uses the module path, not the import name)
+    - Make sure you're mocking the correct level (module vs function)
+    - Use jest.spyOn for class methods or object properties
+  </Accordion>
+</AccordionGroup>
+
+## Testing Checklist
+
+<Card title="Testing Checklist" icon="clipboard-check">
+  <CheckboxField id="unit-tests" label="Unit tests for business logic" />
+  <CheckboxField id="edge-cases" label="Tests for edge cases and error scenarios" />
+  <CheckboxField id="integration-tests" label="Integration tests for critical paths" />
+  <CheckboxField id="ui-tests" label="UI component tests" />
+  <CheckboxField id="e2e-tests" label="End-to-end tests for critical user journeys" />
+  <CheckboxField id="coverage" label="Reasonable test coverage achieved" />
+  <CheckboxField id="ci-passing" label="All tests pass in CI environment" />
+  <CheckboxField id="performance" label="Tests run in reasonable time" />
+</Card>
+
+## Resources
+
+- [Jest Documentation](https://jestjs.io/docs/getting-started)
+- [React Testing Library Documentation](https://testing-library.com/docs/react-testing-library/intro/)
+- [Playwright Documentation](https://playwright.dev/docs/intro)
+- [Go Testing Documentation](https://golang.org/pkg/testing/)
+- [Test-Driven Development By Example](https://www.amazon.com/Test-Driven-Development-Kent-Beck/dp/0321146530) (Book by Kent Beck)

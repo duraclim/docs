@@ -1,0 +1,847 @@
+---
+title: Security Practices
+description: Guidelines and best practices for maintaining security in Duraclim applications
+icon: shield
+---
+
+# Security Practices
+
+Security is a critical aspect of our development process. This document outlines our security practices, guidelines, and tools to ensure that our applications remain secure throughout their lifecycle.
+
+<Frame>
+  <img src="/images/security-layers.png" alt="Security Layers" className="rounded-lg" />
+</Frame>
+
+## Security Principles
+
+Our security strategy is guided by these core principles:
+
+1. **Defense in depth** - Multiple layers of security controls
+2. **Least privilege** - Limit access to only what's necessary
+3. **Secure by default** - Systems should be secure out of the box
+4. **Keep it simple** - Complex systems are harder to secure
+5. **Regular updates** - Keep dependencies and systems up to date
+
+## Authentication and Authorization
+
+### User Authentication
+
+<AccordionGroup>
+  <Accordion title="Authentication Methods">
+    We use Supabase Auth for user authentication, which supports:
+    
+    - Email/password authentication
+    - Social logins (Google)
+    - Magic link authentication
+    
+    All authentication is implemented with industry-standard security practices, including:
+    
+    - Secure password storage (hashing with bcrypt)
+    - Rate limiting on login attempts
+    - JWT tokens with appropriate expiration
+  </Accordion>
+  
+  <Accordion title="Password Policies">
+    User passwords must meet these requirements:
+    
+    - Minimum length of 8 characters
+    - At least one uppercase letter
+    - At least one lowercase letter
+    - At least one digit
+    - At least one special character
+    
+    We enforce these requirements both in the UI and at the backend.
+  </Accordion>
+  
+  <Accordion title="Token Management">
+    JWT tokens are managed securely:
+    
+    - Stored in secure, httpOnly cookies
+    - Include appropriate expirations
+    - Refresh token rotation
+    - CSRF protection
+  </Accordion>
+</AccordionGroup>
+
+### Authorization
+
+<AccordionGroup>
+  <Accordion title="Role-Based Access Control">
+    We implement role-based access control (RBAC) to restrict access to features and data:
+    
+    - Roles are defined at the application level (admin, user, etc.)
+    - Each role has a specific set of permissions
+    - Role assignments are stored in the database
+    
+    ```typescript
+    // Path: lib/auth/checkPermission.ts
+    export function checkPermission(
+      userRole: string,
+      requiredPermission: string
+    ): boolean {
+      // Define role permissions
+      const rolePermissions: Record<string, string[]> = {
+        admin: ['read:all', 'write:all', 'delete:all'],
+        editor: ['read:all', 'write:own'],
+        user: ['read:own', 'write:own'],
+      };
+      
+      // Get permissions for the user's role
+      const permissions = rolePermissions[userRole] || [];
+      
+      // Check if the user has the required permission
+      return permissions.includes(requiredPermission);
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Row-Level Security">
+    For database access, we use Supabase's Row-Level Security (RLS) policies:
+    
+    ```sql
+    -- Example RLS policy for user-specific data
+    CREATE POLICY "Users can only see their own data"
+      ON public.user_items
+      FOR SELECT
+      USING (auth.uid() = user_id);
+      
+    -- Example RLS policy for role-based access
+    CREATE POLICY "Admins can see all data"
+      ON public.user_items
+      FOR SELECT
+      USING (
+        EXISTS (
+          SELECT 1 FROM public.profiles
+          WHERE id = auth.uid()
+          AND role = 'admin'
+        )
+      );
+    ```
+  </Accordion>
+  
+  <Accordion title="API Authorization">
+    For API endpoints, we implement authorization checks:
+    
+    ```typescript
+    // Path: app/api/protected-resource/route.ts
+    import { NextRequest, NextResponse } from 'next/server';
+    import { createClient } from '@/lib/supabase/server';
+    import { checkPermission } from '@/lib/auth/checkPermission';
+    
+    export async function GET(request: NextRequest) {
+      const supabase = createClient();
+      
+      // Get user session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 401 }
+        );
+      }
+      
+      // Get user role
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+        
+      // Check if user has required permission
+      if (!profile || !checkPermission(profile.role, 'read:resource')) {
+        return NextResponse.json(
+          { error: 'Forbidden' },
+          { status: 403 }
+        );
+      }
+      
+      // Process authorized request
+      return NextResponse.json({ data: 'Protected resource' });
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Data Protection
+
+### Sensitive Data Handling
+
+<AccordionGroup>
+  <Accordion title="Data Classification">
+    We classify data into several categories:
+    
+    - **Public** - Can be freely disclosed
+    - **Internal** - Only for internal use within the company
+    - **Confidential** - Sensitive business information
+    - **Restricted** - Highly sensitive (PII, credentials, etc.)
+    
+    Each category has specific handling requirements.
+  </Accordion>
+  
+  <Accordion title="Encryption">
+    - **Data in Transit** - All communications use TLS 1.2+
+    - **Data at Rest** - Sensitive database columns are encrypted
+    - **Database Backups** - Encrypted before storage
+    
+    ```typescript
+    // Example encryption utility
+    // Path: lib/utils/encryption.ts
+    import crypto from 'crypto';
+    
+    const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY!;
+    const IV_LENGTH = 16; // For AES, this is always 16
+    
+    export function encrypt(text: string): string {
+      const iv = crypto.randomBytes(IV_LENGTH);
+      const cipher = crypto.createCipheriv(
+        'aes-256-cbc',
+        Buffer.from(ENCRYPTION_KEY, 'hex'),
+        iv
+      );
+      
+      let encrypted = cipher.update(text, 'utf8', 'hex');
+      encrypted += cipher.final('hex');
+      
+      return iv.toString('hex') + ':' + encrypted;
+    }
+    
+    export function decrypt(text: string): string {
+      const parts = text.split(':');
+      const iv = Buffer.from(parts[0], 'hex');
+      const encryptedText = parts[1];
+      
+      const decipher = crypto.createDecipheriv(
+        'aes-256-cbc',
+        Buffer.from(ENCRYPTION_KEY, 'hex'),
+        iv
+      );
+      
+      let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      
+      return decrypted;
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="PII Management">
+    Personal Identifiable Information (PII) is protected:
+    
+    - Stored with appropriate access controls
+    - Encrypted when necessary
+    - Anonymized/pseudonymized for analytics
+    - Retained only as long as needed
+    - User consent is tracked and respected
+  </Accordion>
+</AccordionGroup>
+
+### Secure Configuration
+
+<AccordionGroup>
+  <Accordion title="Environment Variables">
+    Sensitive configuration values are stored as environment variables and never committed to source control:
+    
+    ```
+    # .env.example (for development reference)
+    DATABASE_URL=postgresql://user:password@localhost:5432/mydb
+    SUPABASE_URL=https://your-project.supabase.co
+    SUPABASE_ANON_KEY=your-anon-key
+    
+    # .env (real values, not committed)
+    DATABASE_URL=postgresql://actual-user:actual-password@actual-host:5432/actual-db
+    SUPABASE_URL=https://actual-project.supabase.co
+    SUPABASE_ANON_KEY=actual-anon-key
+    ```
+    
+    We use tools like dotenv for local development and secure environment variable management in production environments.
+  </Accordion>
+  
+  <Accordion title="Secrets Management">
+    Production secrets are managed using:
+    
+    - Vercel Environment Variables for frontend deployments
+    - AWS Secrets Manager for backend services
+    - GitHub Secrets for CI/CD pipelines
+    
+    All secrets are rotated regularly and access is restricted.
+  </Accordion>
+</AccordionGroup>
+
+## Web Application Security
+
+### Input Validation and Sanitization
+
+<AccordionGroup>
+  <Accordion title="Form Validation">
+    All user inputs are validated:
+    
+    - Client-side validation for immediate feedback
+    - Server-side validation for security
+    - Use of validation libraries (zod, yup, etc.)
+    
+    ```typescript
+    // Path: lib/schemas/userSchema.ts
+    import { z } from 'zod';
+    
+    export const userSchema = z.object({
+      name: z.string().min(2).max(50),
+      email: z.string().email(),
+      password: z
+        .string()
+        .min(8)
+        .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
+        .regex(/[a-z]/, 'Must contain at least one lowercase letter')
+        .regex(/[0-9]/, 'Must contain at least one digit')
+        .regex(/[^A-Za-z0-9]/, 'Must contain at least one special character'),
+      role: z.enum(['admin', 'user']),
+    });
+    
+    export type UserInput = z.infer<typeof userSchema>;
+    ```
+  </Accordion>
+  
+  <Accordion title="SQL Injection Prevention">
+    To prevent SQL injection:
+    
+    - Use parameterized queries or prepared statements
+    - Never concatenate user input into SQL strings
+    - Use ORMs or query builders that handle parameterization
+    
+    ```typescript
+    // Good (using supabase with parameterized query)
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId) // Safely parameterized
+      
+    // Bad (direct concatenation - never do this)
+    const { data, error } = await supabase
+      .rpc('get_user_by_id', `${userId}`) // Vulnerable to injection
+    ```
+  </Accordion>
+  
+  <Accordion title="XSS Prevention">
+    To prevent Cross-Site Scripting (XSS):
+    
+    - Use React's default escaping for dynamic content
+    - Sanitize HTML content for rich text fields
+    - Apply Content Security Policy (CSP) headers
+    - Use dangerouslySetInnerHTML only when absolutely necessary and with sanitization
+    
+    ```typescript
+    // Safe (React automatically escapes this)
+    return <div>{userProvidedContent}</div>;
+    
+    // When HTML content is needed, sanitize first
+    import DOMPurify from 'dompurify';
+    
+    function SafeHTML({ html }) {
+      const sanitizedHTML = DOMPurify.sanitize(html, {
+        ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p'],
+        ALLOWED_ATTR: ['href', 'target'],
+      });
+      
+      return <div dangerouslySetInnerHTML={{ __html: sanitizedHTML }} />;
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Protection Against Common Attacks
+
+<CardGroup cols={2}>
+  <Card title="CSRF Protection" icon="shield">
+    Cross-Site Request Forgery protection:
+    - Use CSRF tokens for state-changing operations
+    - SameSite cookie attributes
+    - Verifying origin/referer headers
+  </Card>
+  
+  <Card title="CORS Configuration" icon="globe">
+    Cross-Origin Resource Sharing settings:
+    - Restrict to known origins
+    - Limit allowed methods and headers
+    - Use appropriate credentials mode
+  </Card>
+  
+  <Card title="Content Security Policy" icon="lock">
+    CSP headers to prevent XSS and data injection:
+    - Restrict script sources
+    - Prevent inline scripts
+    - Control frame sources
+  </Card>
+  
+  <Card title="Rate Limiting" icon="gauge-high">
+    Protect against brute force and DDoS:
+    - Limit requests per IP/user
+    - Escalating timeouts
+    - CAPTCHA for suspicious activity
+  </Card>
+</CardGroup>
+
+### Security Headers
+
+For all web applications, we implement the following security headers:
+
+```typescript
+// Path: middleware.ts (Next.js)
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+export function middleware(request: NextRequest) {
+  const response = NextResponse.next();
+  
+  // Add security headers
+  response.headers.set('X-XSS-Protection', '1; mode=block');
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' https://trusted-scripts.com; style-src 'self' https://trusted-styles.com; img-src 'self' https://trusted-images.com; connect-src 'self' https://api.duraclim.com;"
+  );
+  response.headers.set(
+    'Strict-Transport-Security',
+    'max-age=63072000; includeSubDomains; preload'
+  );
+  
+  return response;
+}
+
+export const config = {
+  matcher: '/((?!api/health|_next/static|_next/image|favicon.ico).*)',
+};
+```
+
+## API Security
+
+### API Authentication
+
+<AccordionGroup>
+  <Accordion title="JWT Authentication">
+    For authenticated API endpoints:
+    
+    ```typescript
+    // Path: middleware.ts (API route protection)
+    import { NextResponse } from 'next/server';
+    import type { NextRequest } from 'next/server';
+    import { createClient } from '@/lib/supabase/middleware';
+    
+    export async function middleware(request: NextRequest) {
+      // Check if route requires authentication
+      if (request.nextUrl.pathname.startsWith('/api/protected')) {
+        const { supabase, response } = createClient(request);
+        
+        // Get user session
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          return NextResponse.json(
+            { error: 'Unauthorized' },
+            { status: 401 }
+          );
+        }
+      }
+      
+      return NextResponse.next();
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="API Keys">
+    For service-to-service communication:
+    
+    ```go
+    // Path: internal/auth/api_key.go
+    package auth
+
+    import (
+        "crypto/subtle"
+        "errors"
+        "net/http"
+    )
+
+    func ValidateAPIKey(r *http.Request, expectedKey string) error {
+        apiKey := r.Header.Get("X-API-Key")
+        
+        if apiKey == "" {
+            return errors.New("missing API key")
+        }
+        
+        // Constant time comparison to prevent timing attacks
+        if subtle.ConstantTimeCompare([]byte(apiKey), []byte(expectedKey)) != 1 {
+            return errors.New("invalid API key")
+        }
+        
+        return nil
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### API Rate Limiting
+
+To prevent abuse, we implement rate limiting on our APIs:
+
+```typescript
+// Path: lib/middleware/rate-limit.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { Redis } from '@upstash/redis';
+
+const redis = new Redis({
+  url: process.env.REDIS_URL!,
+  token: process.env.REDIS_TOKEN!,
+});
+
+// Configure rate limits
+const RATE_LIMIT_MAX = 100; // requests
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute in milliseconds
+
+export async function rateLimit(request: NextRequest) {
+  // Get client identifier (IP or user ID)
+  const ip = request.ip || 'anonymous';
+  const key = `rate-limit:${ip}`;
+  
+  // Get current count and timestamp
+  const [count, timestamp] = await redis.mget(key, `${key}:timestamp`);
+  
+  // Check if this is a new rate limit window
+  const now = Date.now();
+  const isNewWindow = !timestamp || now - Number(timestamp) > RATE_LIMIT_WINDOW;
+  
+  if (isNewWindow) {
+    // Start a new rate limit window
+    await redis.mset({
+      [key]: 1,
+      [`${key}:timestamp`]: now,
+    });
+    await redis.expire(key, 60); // Expires after 1 minute
+    await redis.expire(`${key}:timestamp`, 60);
+    
+    return null; // No rate limit exceeded
+  }
+  
+  // Check if rate limit exceeded
+  if (count && Number(count) >= RATE_LIMIT_MAX) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded. Try again later.' },
+      { 
+        status: 429, 
+        headers: {
+          'Retry-After': '60',
+          'X-RateLimit-Limit': RATE_LIMIT_MAX.toString(),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': Math.ceil((Number(timestamp) + RATE_LIMIT_WINDOW) / 1000).toString(),
+        }
+      }
+    );
+  }
+  
+  // Increment count
+  await redis.incr(key);
+  
+  return null; // No rate limit exceeded
+}
+```
+
+## Secure Development Lifecycle
+
+### Security in Development
+
+<Steps>
+  <Step title="Security Requirements">
+    Define security requirements at the beginning of each project or feature
+  </Step>
+  
+  <Step title="Secure Coding">
+    Follow secure coding practices during development
+  </Step>
+  
+  <Step title="Code Reviews">
+    Include security-focused code reviews
+  </Step>
+  
+  <Step title="Security Testing">
+    Run automated security scans before deployment
+  </Step>
+  
+  <Step title="Dependency Scanning">
+    Check for vulnerable dependencies
+  </Step>
+</Steps>
+
+### Static Analysis
+
+We use static analysis tools to identify security issues:
+
+<CardGroup cols={2}>
+  <Card title="ESLint Security Plugins" icon="js">
+    - eslint-plugin-security
+    - @typescript-eslint/eslint-plugin
+    - eslint-plugin-react-security
+  </Card>
+  
+  <Card title="Go Security Tools" icon="golang">
+    - gosec
+    - staticcheck
+    - Nancy (for dependency scanning)
+  </Card>
+  
+  <Card title="SAST in CI" icon="magnifying-glass-chart">
+    GitHub Actions workflow for security scanning
+  </Card>
+  
+  <Card title="Dependency Scanning" icon="box-open">
+    - npm audit
+    - Dependabot alerts
+    - go list -m -json all | nancy sleuth
+  </Card>
+</CardGroup>
+
+### Vulnerability Management
+
+<AccordionGroup>
+  <Accordion title="Dependency Updates">
+    We regularly update dependencies to address security vulnerabilities:
+    
+    - Weekly automated dependency updates via Dependabot
+    - Critical security patches applied immediately
+    - Major version upgrades planned and tested thoroughly
+    
+    ```yaml
+    # Path: .github/dependabot.yml
+    version: 2
+    updates:
+      - package-ecosystem: "npm"
+        directory: "/"
+        schedule:
+          interval: "weekly"
+        open-pull-requests-limit: 10
+        
+      - package-ecosystem: "gomod"
+        directory: "/src"
+        schedule:
+          interval: "weekly"
+        open-pull-requests-limit: 10
+    ```
+  </Accordion>
+  
+  <Accordion title="Security Scanning">
+    Automated security scanning is performed:
+    
+    - On every pull request
+    - Weekly on main/master branches
+    - Ad-hoc penetration testing for major releases
+    
+    ```yaml
+    # Path: .github/workflows/security.yml
+    name: Security Scan
+    
+    on:
+      pull_request:
+        branches: [main]
+      schedule:
+        - cron: '0 0 * * 0'  # Weekly on Sundays
+    
+    jobs:
+      security:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v3
+          
+          - name: Run npm audit
+            run: npm audit --production
+            
+          - name: Run gosec
+            uses: securego/gosec@master
+            with:
+              args: -exclude-dir=vendor ./...
+              
+          - name: Run OWASP ZAP Scan
+            uses: zaproxy/action-baseline@v0.7.0
+            with:
+              target: 'https://staging.duraclim.com'
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Infrastructure Security
+
+### Cloud Security
+
+<AccordionGroup>
+  <Accordion title="AWS Security">
+    Our AWS infrastructure follows security best practices:
+    
+    - Least privilege IAM roles and policies
+    - VPC with private and public subnets
+    - Security groups with minimal open ports
+    - CloudTrail logging for audit trails
+    - KMS for encryption key management
+    - WAF for web application protection
+  </Accordion>
+  
+  <Accordion title="Vercel Security">
+    For Vercel deployments:
+    
+    - Environment variable encryption
+    - Automatic TLS certificates
+    - Team-based access controls
+    - Deployment branch protection
+    - Preview environment isolation
+  </Accordion>
+  
+  <Accordion title="Database Security">
+    For database security:
+    
+    - Private VPC deployment
+    - Strong authentication credentials
+    - Regular backups with encryption
+    - Point-in-time recovery enabled
+    - Connection encryption enforced
+    - Limited network access (IP restrictions)
+  </Accordion>
+</AccordionGroup>
+
+### Monitoring and Logging
+
+<AccordionGroup>
+  <Accordion title="Security Monitoring">
+    We monitor for security events:
+    
+    - Failed authentication attempts
+    - Unusual API usage patterns
+    - Infrastructure configuration changes
+    - Privileged account activities
+    
+    Alerts are sent to the security team for investigation.
+  </Accordion>
+  
+  <Accordion title="Log Management">
+    Security-relevant logs are:
+    
+    - Centralized in a secure log management system
+    - Retained for at least 90 days
+    - Protected from unauthorized access or modification
+    - Monitored for security events
+    
+    Logs include:
+    
+    - Authentication events
+    - Authorization decisions
+    - API access logs
+    - System and infrastructure logs
+  </Accordion>
+</AccordionGroup>
+
+## Incident Response
+
+### Security Incident Handling
+
+<Steps>
+  <Step title="Identification">
+    Detect and validate security incidents through monitoring, alerts, or reports
+  </Step>
+  
+  <Step title="Containment">
+    Limit the impact by isolating affected systems and blocking attack vectors
+  </Step>
+  
+  <Step title="Eradication">
+    Remove the cause of the incident and remediate vulnerabilities
+  </Step>
+  
+  <Step title="Recovery">
+    Restore systems to normal operation and verify security
+  </Step>
+  
+  <Step title="Lessons Learned">
+    Document findings and implement improvements to prevent similar incidents
+  </Step>
+</Steps>
+
+### Responsible Disclosure
+
+We maintain a responsible disclosure policy for security researchers to report vulnerabilities:
+
+```markdown
+# Responsible Disclosure Policy
+
+We take security seriously at Duraclim. If you believe you've found a security vulnerability, please follow these steps:
+
+1. Email security@duraclim.com with details of the vulnerability
+2. Include steps to reproduce the issue
+3. Allow us reasonable time to respond and address the issue
+4. Do not disclose the issue publicly until we've had a chance to address it
+
+We promise to:
+- Respond within 48 hours to acknowledge your report
+- Keep you updated on our progress
+- Not take legal action if you follow this policy
+- Give credit for verified reports
+```
+
+## Security Training
+
+### Developer Security Training
+
+All developers receive security training:
+
+1. **Initial onboarding** - Basic security awareness and practices
+2. **Annual refresher** - Updates on threats and security practices
+3. **Technology-specific** - Security aspects of specific technologies (React, Go, etc.)
+4. **New feature security** - Security considerations for new feature development
+
+### Security Resources
+
+<CardGroup cols={2}>
+  <Card title="OWASP Top 10" icon="list-ol">
+    Understanding and preventing web application security risks
+    
+    [OWASP Top 10](https://owasp.org/www-project-top-ten/)
+  </Card>
+  
+  <Card title="SANS Secure Coding Practices" icon="code">
+    Guidelines for writing secure code
+    
+    [SANS Secure Coding](https://www.sans.org/top25-software-errors/)
+  </Card>
+  
+  <Card title="Duraclim Security Handbook" icon="book">
+    Internal guide to our security practices and requirements
+    
+    [Security Handbook](https://internal.duraclim.com/security)
+  </Card>
+  
+  <Card title="Security Checklists" icon="clipboard-check">
+    Feature-specific security checklists for review
+    
+    [Security Checklists](https://internal.duraclim.com/security/checklists)
+  </Card>
+</CardGroup>
+
+## Security Checklist
+
+<Card title="Security Implementation Checklist" icon="clipboard-check">
+  <CheckboxField id="authentication" label="Secure authentication implemented" />
+  <CheckboxField id="authorization" label="Proper authorization controls in place" />
+  <CheckboxField id="data-encryption" label="Sensitive data is encrypted" />
+  <CheckboxField id="input-validation" label="Input validation and sanitization" />
+  <CheckboxField id="xss-prevention" label="XSS prevention measures" />
+  <CheckboxField id="csrf-protection" label="CSRF protection implemented" />
+  <CheckboxField id="security-headers" label="Security headers configured" />
+  <CheckboxField id="secure-comms" label="All communications use HTTPS" />
+  <CheckboxField id="dependency-scanning" label="Dependencies scanned for vulnerabilities" />
+  <CheckboxField id="secrets-management" label="Secrets properly managed" />
+  <CheckboxField id="logging-monitoring" label="Security logging and monitoring in place" />
+  <CheckboxField id="rate-limiting" label="API rate limiting implemented" />
+</Card>
+
+## Additional Resources
+
+- [OWASP Web Security Testing Guide](https://owasp.org/www-project-web-security-testing-guide/)
+- [NIST Cybersecurity Framework](https://www.nist.gov/cyberframework)
+- [Mozilla Web Security Guidelines](https://infosec.mozilla.org/guidelines/web_security)
+- [AWS Security Best Practices](https://aws.amazon.com/architecture/security-identity-compliance/)
+- [Next.js Security Documentation](https://nextjs.org/docs/advanced-features/security-headers)

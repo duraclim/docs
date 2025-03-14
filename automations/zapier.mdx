@@ -1,0 +1,480 @@
+---
+title: Zapier
+description: Guide to using Zapier for creating and managing automations at Duraclim
+icon: zapier
+---
+
+# Zapier
+
+[Zapier](https://zapier.com/) is our primary automation platform for connecting apps and services. This guide provides detailed information on how to use Zapier effectively at Duraclim, following our established practices and standards.
+
+<Frame>
+  <img src="/images/zapier-overview.png" alt="Zapier Overview" className="rounded-lg" />
+</Frame>
+
+## What is Zapier?
+
+Zapier is a web-based service that allows you to connect different applications and automate workflows without writing code. Each automation in Zapier is called a "Zap" and consists of a trigger (what starts the automation) and one or more actions (what happens when the trigger fires).
+
+## When to Use Zapier
+
+At Duraclim, we use Zapier for:
+
+- Higher reliability workflows where uptime is critical
+- Integrations that require specialized Zapier apps not available in Pabbly
+- Complex logic flows with multiple conditions and branching paths
+- Workflows where easy troubleshooting is a priority
+- Lower volume automations (due to Zapier's task-based pricing model)
+
+## Account Access
+
+To access our Zapier account:
+
+1. Request access from the IT department via the [Access Request Form](https://forms.duraclim.com/access-request)
+2. You'll receive an invitation email from Zapier
+3. Accept the invitation and set up your account
+4. You'll be added to our Zapier workspace as a Team Member
+
+<Note>
+  Always use your Duraclim email address when accepting the invitation.
+</Note>
+
+## Zapier Interface Overview
+
+<AccordionGroup>
+  <Accordion title="Dashboard">
+    The Zapier dashboard is your home base where you can:
+    
+    - See all your Zaps and their status
+    - Create new Zaps
+    - Access folders and organization tools
+    - Check task usage and account settings
+    
+    <Frame>
+      <img src="/images/zapier-dashboard.png" alt="Zapier Dashboard" className="rounded-lg" />
+    </Frame>
+  </Accordion>
+  
+  <Accordion title="Zap Editor">
+    The Zap Editor is where you create and edit Zaps:
+    
+    - Choose trigger apps and events
+    - Set up actions to occur when the trigger fires
+    - Test steps to ensure they work as expected
+    - Configure filters and conditional logic
+    
+    <Frame>
+      <img src="/images/zapier-editor.png" alt="Zapier Editor" className="rounded-lg" />
+    </Frame>
+  </Accordion>
+  
+  <Accordion title="History">
+    The History tab shows:
+    
+    - Recent Zap runs
+    - Success or failure status
+    - Detailed logs for troubleshooting
+    - Input and output data for each step
+    
+    <Frame>
+      <img src="/images/zapier-history.png" alt="Zapier History" className="rounded-lg" />
+    </Frame>
+  </Accordion>
+</AccordionGroup>
+
+## Creating a New Zap
+
+<Steps>
+  <Step title="Start a new Zap">
+    Click the "Create Zap" button in the top navigation bar.
+  </Step>
+  
+  <Step title="Choose a trigger app">
+    Select the app that will trigger your Zap (e.g., Jotform, Pipedrive, Google Sheets).
+  </Step>
+  
+  <Step title="Select trigger event">
+    Choose what event in the trigger app will start your Zap (e.g., "New Form Submission" for Jotform).
+  </Step>
+  
+  <Step title="Connect your account">
+    Connect your account for the trigger app if not already connected.
+  </Step>
+  
+  <Step title="Configure trigger">
+    Set up the specific details for your trigger (e.g., which form to monitor for Jotform).
+  </Step>
+  
+  <Step title="Test trigger">
+    Test the trigger to make sure it's working and to get sample data for setting up actions.
+  </Step>
+  
+  <Step title="Add an action">
+    Choose an app and action for what should happen when the trigger fires.
+  </Step>
+  
+  <Step title="Configure action">
+    Set up the action details, mapping fields from your trigger to the appropriate places in your action.
+  </Step>
+  
+  <Step title="Test action">
+    Test the action to make sure it works correctly with your trigger data.
+  </Step>
+  
+  <Step title="Add additional actions or filters">
+    Add more actions if needed, or add filters to make your Zap more selective about when it runs.
+  </Step>
+  
+  <Step title="Name your Zap">
+    Give your Zap a clear name following our [naming conventions](/automations/naming-conventions).
+  </Step>
+  
+  <Step title="Review and publish">
+    Review your Zap to make sure everything is set up correctly, then turn it on.
+  </Step>
+</Steps>
+
+## Advanced Zapier Features
+
+### Paths
+
+Paths allow your Zap to take different actions based on conditions:
+
+<Frame>
+  <img src="/images/zapier-paths.png" alt="Zapier Paths" className="rounded-lg" />
+</Frame>
+
+To set up paths:
+
+1. Click the "+" icon after a step and select "Paths"
+2. Set up a condition for the first path (e.g., "Only continue if [Field] contains [Value]")
+3. Add actions for that path
+4. Add additional paths as needed
+5. Optionally add a "Default path" for cases that don't match any condition
+
+### Filters
+
+Filters let you stop a Zap from continuing unless certain conditions are met:
+
+<Frame>
+  <img src="/images/zapier-filters.png" alt="Zapier Filters" className="rounded-lg" />
+</Frame>
+
+To add a filter:
+
+1. Click the "+" icon after a step and select "Filter"
+2. Set up your conditions (e.g., "Only continue if [Field] exists")
+3. Test the filter with sample data
+
+### Formatters
+
+Formatters help manipulate data between steps without needing a separate app:
+
+<Frame>
+  <img src="/images/zapier-formatters.png" alt="Zapier Formatters" className="rounded-lg" />
+</Frame>
+
+Common formatter uses:
+
+- Text formatting (lowercase, uppercase, capitalize)
+- Number formatting (round, format as currency)
+- Date formatting (convert between formats)
+- Lookup tables (map values to new values)
+- Utilities (extract email, phone formatting)
+
+### Code Steps
+
+For complex transformations, use Code steps to run JavaScript:
+
+<Frame>
+  <img src="/images/zapier-code.png" alt="Zapier Code" className="rounded-lg" />
+</Frame>
+
+Example code step for formatting a phone number:
+
+```javascript
+// Input: inputData.phoneNumber (e.g., "123-456-7890")
+// Output: Formatted E.164 phone number
+function formatPhoneNumber(phone) {
+  // Remove all non-digit characters
+  const digitsOnly = phone.replace(/\D/g, '');
+  
+  // Ensure it has 10 digits (US number)
+  if (digitsOnly.length !== 10) {
+    return phone; // Return original if not valid
+  }
+  
+  // Format as E.164 (add +1 for US)
+  return `+1${digitsOnly}`;
+}
+
+output = { 
+  formattedPhone: formatPhoneNumber(inputData.phoneNumber)
+};
+```
+
+### Sub-Zaps
+
+Sub-Zaps allow you to create reusable components:
+
+<Frame>
+  <img src="/images/zapier-subzaps.png" alt="Zapier Sub-Zaps" className="rounded-lg" />
+</Frame>
+
+To create a Sub-Zap:
+
+1. Create a new Zap with the "Zapier" trigger app
+2. Choose "Run Sub-Zap" as the trigger event
+3. Configure the inputs the Sub-Zap will accept
+4. Build the actions for the Sub-Zap
+5. To use the Sub-Zap, add a "Run a Sub-Zap" action in another Zap
+
+See our [Automation Design Standards](/automations/design-standards#sub-zap-methodology) for more details on when and how to use Sub-Zaps.
+
+## Common Integrations
+
+### Pipedrive
+
+<AccordionGroup>
+  <Accordion title="Setting up Pipedrive Trigger">
+    Common Pipedrive triggers:
+    
+    - New Person
+    - New Deal
+    - Updated Deal
+    - New Activity
+    
+    Important settings:
+    
+    - Always specify the correct pipeline when setting up deal triggers
+    - Consider adding filters for specific stages when dealing with pipeline stage changes
+  </Accordion>
+  
+  <Accordion title="Pipedrive Actions">
+    Common Pipedrive actions:
+    
+    - Create Person
+    - Create Deal
+    - Update Deal
+    - Create Activity
+    - Create Note
+    
+    Best practices:
+    
+    - When creating deals, always include the organization or person
+    - Use dynamic field mapping when updating deals
+    - Set activity types and due dates correctly
+  </Accordion>
+</AccordionGroup>
+
+### Jobber
+
+<AccordionGroup>
+  <Accordion title="Setting up Jobber Trigger">
+    Common Jobber triggers:
+    
+    - New Job
+    - Updated Job
+    - Completed Job
+    - New Invoice
+    
+    Important settings:
+    
+    - Filter by job type or service type when relevant
+    - For job updates, use filters to target specific status changes
+  </Accordion>
+  
+  <Accordion title="Jobber Actions">
+    Common Jobber actions:
+    
+    - Create Client
+    - Create Job
+    - Update Job
+    - Send Message to Client
+    
+    Best practices:
+    
+    - Include all required client information when creating clients
+    - Set job schedules with proper durations
+    - Use variable replacement in client messages for personalization
+  </Accordion>
+</AccordionGroup>
+
+### Google Sheets
+
+<AccordionGroup>
+  <Accordion title="Setting up Google Sheets Trigger">
+    Common Google Sheets triggers:
+    
+    - New Spreadsheet Row
+    - Updated Spreadsheet Row
+    
+    Important settings:
+    
+    - Always use headers in your spreadsheet
+    - Create a dedicated test sheet for testing Zaps
+    - Consider using the "New or Updated Spreadsheet Row" trigger to catch both
+  </Accordion>
+  
+  <Accordion title="Google Sheets Actions">
+    Common Google Sheets actions:
+    
+    - Create Spreadsheet Row
+    - Update Spreadsheet Row
+    - Lookup Spreadsheet Row
+    
+    Best practices:
+    
+    - Use consistent column names in your sheets
+    - For lookups, ensure you have a unique identifier column
+    - Use Formatter steps before creating rows to ensure data format consistency
+  </Accordion>
+</AccordionGroup>
+
+## Task Management
+
+Zapier charges based on the number of "tasks" used. A task is counted each time your Zap successfully completes an action:
+
+- Each action step in a Zap counts as one task
+- Filter steps don't count as tasks unless the condition is met
+- Path steps only count for the path that's taken
+
+<CardGroup cols={2}>
+  <Card title="Task Efficiency" icon="gauge-simple-high">
+    To minimize task usage:
+    
+    - Use filters early in your Zaps to prevent unnecessary actions
+    - Combine multiple actions in a single Zap where appropriate
+    - Use built-in formatters instead of separate formatter steps when possible
+  </Card>
+  
+  <Card title="Monitoring Usage" icon="chart-line">
+    Monitor your task usage:
+    
+    - Check the usage dashboard regularly
+    - Set up usage alerts (Admin settings > Usage Alerts)
+    - Review high-task-usage Zaps for optimization
+    - Consider moving high-volume automations to Pabbly
+  </Card>
+</CardGroup>
+
+## Troubleshooting Zaps
+
+When a Zap isn't working as expected:
+
+<Steps>
+  <Step title="Check Zap history">
+    Go to the Zap's "Task History" tab to see recent runs and their status.
+  </Step>
+  
+  <Step title="Review error messages">
+    Click on failed tasks to see detailed error messages that can help identify the issue.
+  </Step>
+  
+  <Step title="Test each step">
+    In the Zap editor, test each step individually to find where the problem occurs.
+  </Step>
+  
+  <Step title="Check app connections">
+    Ensure your app connections are still valid and working properly.
+  </Step>
+  
+  <Step title="Verify triggers">
+    Make sure your trigger is still receiving data as expected.
+  </Step>
+  
+  <Step title="Check for data formatting issues">
+    Often, errors occur because data isn't formatted as the destination app expects.
+  </Step>
+  
+  <Step title="Review recent changes">
+    If a previously working Zap stops working, check if any recent changes to connected apps might be causing the issue.
+  </Step>
+</Steps>
+
+### Common Error Messages
+
+<AccordionGroup>
+  <Accordion title="Authentication Errors">
+    - "Invalid API key" - Reconnect the app account
+    - "Authorization failed" - Re-authenticate the connection
+    - "Token expired" - Refresh the connection
+  </Accordion>
+  
+  <Accordion title="Data Format Errors">
+    - "Invalid data format" - Check the input data formatting
+    - "Required field missing" - Ensure all required fields have values
+    - "Value out of range" - Verify the data is within acceptable limits
+  </Accordion>
+  
+  <Accordion title="Rate Limit Errors">
+    - "Rate limit exceeded" - The API has temporary limits; try again later
+    - "Too many requests" - Spread out your Zap triggers
+  </Accordion>
+</AccordionGroup>
+
+## Zapier Security Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Account Security" icon="shield-check">
+    - Use strong, unique passwords
+    - Enable two-factor authentication
+    - Never share Zapier credentials
+    - Request account deactivation when team members leave
+  </Card>
+  
+  <Card title="Data Security" icon="lock">
+    - Minimize sensitive data in Zaps
+    - Don't include passwords or API keys in Zap steps
+    - Use secure connections for all apps
+    - Regularly audit app connections
+  </Card>
+  
+  <Card title="Permission Management" icon="user-lock">
+    - Use folder permissions to limit access to sensitive Zaps
+    - Assign appropriate team member roles (Admin, Member, Limited)
+    - Regularly review team member access
+  </Card>
+  
+  <Card title="Compliance" icon="check-to-slot">
+    - Ensure Zaps are compliant with data privacy regulations
+    - Document data flows for auditing purposes
+    - Be aware of data residency requirements
+  </Card>
+</CardGroup>
+
+## Duraclim Zapier Guidelines
+
+### Documentation Requirements
+
+Every Zap should have:
+
+1. A clear, descriptive name following our [naming conventions](/automations/naming-conventions)
+2. Description field filled out explaining the Zap's purpose
+3. Folder assignment for organization
+4. Miro documentation if it's a complex or critical Zap
+
+### Testing Protocol
+
+Before turning on a production Zap:
+
+1. Test every step thoroughly
+2. Run complete end-to-end tests
+3. Verify with real data when possible
+4. Have another team member review the Zap for complex automations
+
+### Change Management
+
+When modifying existing Zaps:
+
+1. Clone the Zap instead of editing directly if it's a major change
+2. Document the changes in the Zap description
+3. Re-test all steps after making changes
+4. Update any external documentation
+
+## Resources
+
+- [Zapier Help Center](https://help.zapier.com/)
+- [Zapier University](https://zapier.com/university)
+- [Zapier Blog](https://zapier.com/blog)
+- [Internal Zapier Examples](/automations/examples)

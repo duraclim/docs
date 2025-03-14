@@ -1,0 +1,588 @@
+---
+title: Tools
+description: Overview of development and productivity tools used at Duraclim IT
+icon: toolbox
+---
+
+# Tools
+
+This document provides an overview of the tools and software we use at Duraclim IT across various functions, including development, automation, design, and project management.
+
+<Frame>
+  <img src="/images/duraclim-tools-overview.png" alt="Duraclim Tools Overview" className="rounded-lg" />
+</Frame>
+
+## Development Tools
+
+### Code Editors & IDEs
+
+<CardGroup cols={3}>
+  <Card title="Visual Studio Code" icon="vscode">
+    Our primary code editor for most development work.
+    
+    **Use for:** JavaScript, TypeScript, React, Go, Python
+    
+    [Download VS Code](https://code.visualstudio.com/)
+  </Card>
+  
+  <Card title="GoLand" icon="golang">
+    JetBrains IDE specifically for Go development.
+    
+    **Use for:** Complex Go microservices, debugging Go applications
+    
+    [Download GoLand](https://www.jetbrains.com/go/)
+  </Card>
+  
+  <Card title="PyCharm" icon="python">
+    JetBrains IDE for Python development.
+    
+    **Use for:** Python automation scripts, data processing
+    
+    [Download PyCharm](https://www.jetbrains.com/pycharm/)
+  </Card>
+</CardGroup>
+
+#### VS Code Extensions
+
+These extensions are essential for our development workflow:
+
+<table>
+  <thead>
+    <tr>
+      <th>Extension</th>
+      <th>Purpose</th>
+      <th>Required?</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>ESLint</td>
+      <td>JavaScript/TypeScript linting</td>
+      <td>✅ Yes</td>
+    </tr>
+    <tr>
+      <td>Prettier</td>
+      <td>Code formatting</td>
+      <td>✅ Yes</td>
+    </tr>
+    <tr>
+      <td>Go</td>
+      <td>Go language support</td>
+      <td>✅ For Go development</td>
+    </tr>
+    <tr>
+      <td>Python</td>
+      <td>Python language support</td>
+      <td>✅ For Python development</td>
+    </tr>
+    <tr>
+      <td>Tailwind CSS IntelliSense</td>
+      <td>Tailwind CSS support</td>
+      <td>✅ For frontend development</td>
+    </tr>
+    <tr>
+      <td>GitLens</td>
+      <td>Git integration</td>
+      <td>Recommended</td>
+    </tr>
+    <tr>
+      <td>Docker</td>
+      <td>Docker integration</td>
+      <td>Recommended</td>
+    </tr>
+    <tr>
+      <td>Live Share</td>
+      <td>Collaborative editing</td>
+      <td>Optional</td>
+    </tr>
+  </tbody>
+</table>
+
+### Version Control
+
+<CardGroup cols={2}>
+  <Card title="Git" icon="github">
+    Our version control system for tracking code changes.
+    
+    **Use for:** All code and configuration management
+    
+    [Download Git](https://git-scm.com/)
+  </Card>
+  
+  <Card title="GitHub" icon="github">
+    Cloud-based Git repository hosting platform.
+    
+    **Use for:** Storing repositories, code reviews, issue tracking
+    
+    [Duraclim GitHub](https://github.com/duraclim)
+  </Card>
+</CardGroup>
+
+### Development Environment
+
+<CardGroup cols={2}>
+  <Card title="Docker" icon="docker">
+    Containerization platform for consistent development and deployment environments.
+    
+    **Use for:** Local development, testing, production containers
+    
+    [Download Docker](https://www.docker.com/products/docker-desktop)
+  </Card>
+  
+  <Card title="Node.js" icon="node-js">
+    JavaScript runtime for backend development.
+    
+    **Use for:** JavaScript/TypeScript development, npm packages
+    
+    **Version:** 18.x LTS
+    
+    [Download Node.js](https://nodejs.org/)
+  </Card>
+  
+  <Card title="Go" icon="golang">
+    Programming language for backend services.
+    
+    **Use for:** Microservices, backend APIs
+    
+    **Version:** 1.24.x
+    
+    [Download Go](https://golang.org/dl/)
+  </Card>
+  
+  <Card title="Python" icon="python">
+    Programming language for automation scripts and data processing.
+    
+    **Use for:** Data processing, automation scripts
+    
+    **Version:** 3.10+
+    
+    [Download Python](https://www.python.org/downloads/)
+  </Card>
+</CardGroup>
+
+### Databases & Storage
+
+<CardGroup cols={3}>
+  <Card title="Supabase" icon="database">
+    Postgres database with auth and realtime API.
+    
+    **Use for:** Application database, authentication, storage
+    
+    [Supabase Dashboard](https://app.supabase.io/)
+  </Card>
+  
+  <Card title="Redis" icon="database">
+    In-memory data structure store used for caching and messaging.
+    
+    **Use for:** Caching, pub/sub, session storage
+    
+    [Redis Documentation](https://redis.io/)
+  </Card>
+  
+  <Card title="Amazon S3" icon="aws">
+    Object storage service for backups and large files.
+    
+    **Use for:** File storage, backups, static assets
+    
+    [S3 Console](https://console.aws.amazon.com/s3/)
+  </Card>
+</CardGroup>
+
+### Frontend Libraries
+
+<CardGroup cols={3}>
+  <Card title="React" icon="react">
+    JavaScript library for building user interfaces.
+    
+    **Use for:** Web application UIs
+    
+    [React Documentation](https://react.dev/)
+  </Card>
+  
+  <Card title="Next.js" icon="react">
+    React framework for production-ready applications.
+    
+    **Use for:** Full-stack React applications
+    
+    [Next.js Documentation](https://nextjs.org/docs)
+  </Card>
+  
+  <Card title="Tailwind CSS" icon="html5">
+    Utility-first CSS framework.
+    
+    **Use for:** Styling web applications
+    
+    [Tailwind Documentation](https://tailwindcss.com/docs)
+  </Card>
+</CardGroup>
+
+## DevOps & Infrastructure Tools
+
+<CardGroup cols={2}>
+  <Card title="AWS" icon="aws">
+    Cloud infrastructure provider.
+    
+    **Services we use:**
+    - EC2 (Virtual servers)
+    - S3 (Object storage)
+    - RDS (Managed databases)
+    - CloudFront (CDN)
+    - IAM (Access management)
+    
+    [AWS Console](https://console.aws.amazon.com/)
+  </Card>
+  
+  <Card title="Vercel" icon="upload">
+    Deployment and hosting platform.
+    
+    **Use for:** Hosting Next.js applications
+    
+    [Vercel Dashboard](https://vercel.com/dashboard)
+  </Card>
+  
+  <Card title="GitHub Actions" icon="github">
+    CI/CD workflow automation.
+    
+    **Use for:** Automated testing, building, and deployment
+    
+    [GitHub Actions Documentation](https://docs.github.com/en/actions)
+  </Card>
+  
+  <Card title="Datadog" icon="chart-line">
+    Monitoring and analytics platform.
+    
+    **Use for:** Application monitoring, log management, alerting
+    
+    [Datadog Dashboard](https://app.datadoghq.com/)
+  </Card>
+</CardGroup>
+
+## Automation & Integration Tools
+
+<CardGroup cols={2}>
+  <Card title="Zapier" icon="zapier">
+    Web automation platform.
+    
+    **Use for:** Connecting apps and automating workflows
+    
+    [Zapier Dashboard](https://zapier.com/app/dashboard)
+  </Card>
+  
+  <Card title="Pabbly Connect" icon="plug">
+    Workflow automation platform.
+    
+    **Use for:** High-volume automations and workflow orchestration
+    
+    [Pabbly Connect](https://connect.pabbly.com/)
+  </Card>
+  
+  <Card title="Postman" icon="paper-plane">
+    API development and testing tool.
+    
+    **Use for:** API testing, documentation, and collaboration
+    
+    [Download Postman](https://www.postman.com/downloads/)
+  </Card>
+  
+  <Card title="n8n" icon="network-wired">
+    Self-hosted workflow automation tool.
+    
+    **Use for:** Internal automations requiring advanced customization
+    
+    [n8n Documentation](https://docs.n8n.io/)
+  </Card>
+</CardGroup>
+
+## Project Management & Collaboration
+
+<CardGroup cols={3}>
+  <Card title="Asana" icon="list-check">
+    Task and project management tool.
+    
+    **Use for:** Task tracking, project management
+    
+    [Asana Dashboard](https://app.asana.com/)
+  </Card>
+  
+  <Card title="Slack" icon="slack">
+    Team communication platform.
+    
+    **Use for:** Team communication, notifications
+    
+    [Slack Workspace](https://duraclim.slack.com/)
+  </Card>
+  
+  <Card title="Google Workspace" icon="google">
+    Productivity and collaboration suite.
+    
+    **Use for:** Email, documents, spreadsheets, meetings
+    
+    [Google Workspace](https://workspace.google.com/)
+  </Card>
+  
+  <Card title="Miro" icon="sitemap">
+    Online collaborative whiteboard platform.
+    
+    **Use for:** Diagramming, wireframing, planning
+    
+    [Miro Dashboard](https://miro.com/app/)
+  </Card>
+  
+  <Card title="Notion" icon="notion">
+    All-in-one workspace for notes and documents.
+    
+    **Use for:** Documentation, knowledge base, personal notes
+    
+    [Notion Dashboard](https://www.notion.so/)
+  </Card>
+  
+  <Card title="Loom" icon="video">
+    Video recording and sharing tool.
+    
+    **Use for:** Async communication, tutorials, demos
+    
+    [Loom Dashboard](https://www.loom.com/looms)
+  </Card>
+</CardGroup>
+
+## Design & UX Tools
+
+<CardGroup cols={3}>
+  <Card title="Figma" icon="figma">
+    Collaborative interface design tool.
+    
+    **Use for:** UI design, prototyping, design system
+    
+    [Figma Projects](https://www.figma.com/)
+  </Card>
+  
+  <Card title="Excalidraw" icon="pen">
+    Virtual whiteboard for sketching hand-drawn like diagrams.
+    
+    **Use for:** Diagrams, wireframes, quick sketches
+    
+    [Excalidraw](https://excalidraw.com/)
+  </Card>
+  
+  <Card title="Canva" icon="brush">
+    Online design and publishing tool.
+    
+    **Use for:** Marketing materials, social media graphics
+    
+    [Canva Dashboard](https://www.canva.com/)
+  </Card>
+</CardGroup>
+
+## Data & Analytics Tools
+
+<CardGroup cols={2}>
+  <Card title="Google Data Studio" icon="chart-pie">
+    Data visualization and reporting tool.
+    
+    **Use for:** Business intelligence dashboards, reports
+    
+    [Data Studio](https://datastudio.google.com/)
+  </Card>
+  
+  <Card title="Jupyter Notebooks" icon="python">
+    Interactive computing environment for data analysis.
+    
+    **Use for:** Data exploration, analysis, visualization
+    
+    [Jupyter](https://jupyter.org/)
+  </Card>
+  
+  <Card title="BigQuery" icon="google">
+    Google's serverless, highly scalable data warehouse.
+    
+    **Use for:** Large-scale data analysis
+    
+    [BigQuery Console](https://console.cloud.google.com/bigquery)
+  </Card>
+  
+  <Card title="Supabase Functions" icon="database">
+    Server-side functions for data manipulation.
+    
+    **Use for:** Data processing, transformation
+    
+    [Supabase Functions](https://supabase.io/docs/guides/functions)
+  </Card>
+</CardGroup>
+
+## Security & Access Management
+
+<CardGroup cols={2}>
+  <Card title="1Password" icon="lock">
+    Password manager for secure credential storage.
+    
+    **Use for:** Password management, secure notes, sharing credentials
+    
+    [1Password](https://1password.com/)
+  </Card>
+  
+  <Card title="AWS IAM" icon="aws">
+    Identity and access management for AWS.
+    
+    **Use for:** Managing AWS access and permissions
+    
+    [IAM Console](https://console.aws.amazon.com/iam/)
+  </Card>
+  
+  <Card title="GitHub Organizations" icon="github">
+    Team-based access control for repositories.
+    
+    **Use for:** Managing repository access
+    
+    [GitHub Org Settings](https://github.com/organizations/duraclim/settings)
+  </Card>
+  
+  <Card title="Supabase Auth" icon="key">
+    Authentication and authorization service.
+    
+    **Use for:** User authentication, row-level security
+    
+    [Supabase Auth](https://supabase.io/docs/guides/auth)
+  </Card>
+</CardGroup>
+
+## Setting Up Your Development Environment
+
+<Steps>
+  <Step title="Install essential software">
+    Download and install these core tools:
+    - Visual Studio Code
+    - Git
+    - Docker Desktop
+    - Node.js (LTS version)
+    - Go (if working on backend services)
+    - Python (if working on automation scripts)
+  </Step>
+  
+  <Step title="Configure VS Code">
+    Install required extensions:
+    ```
+    code --install-extension dbaeumer.vscode-eslint
+    code --install-extension esbenp.prettier-vscode
+    code --install-extension golang.go
+    code --install-extension ms-python.python
+    code --install-extension bradlc.vscode-tailwindcss
+    ```
+    
+    Copy our standard VS Code settings from [this gist](https://gist.github.com/duraclim/vscode-settings).
+  </Step>
+  
+  <Step title="Set up Git">
+    Configure Git with your user information:
+    ```bash
+    git config --global user.name "Your Name"
+    git config --global user.email "your.email@duraclim.com"
+    ```
+    
+    Generate and add an SSH key to your GitHub account following [GitHub's documentation](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent).
+  </Step>
+  
+  <Step title="Clone repositories">
+    Clone the repositories you'll be working with:
+    ```bash
+    git clone git@github.com:duraclim/duraclim-calculator.git
+    git clone git@github.com:duraclim/go-reschedule-client.git
+    git clone git@github.com:duraclim/knowledge-base.git
+    ```
+  </Step>
+  
+  <Step title="Set up authentication">
+    Request access to:
+    - Supabase project
+    - AWS IAM user
+    - 1Password vault
+    - Slack workspace
+    
+    Follow the onboarding emails you receive for each service.
+  </Step>
+</Steps>
+
+## Tool Access Request Process
+
+To request access to any of the tools mentioned above:
+
+1. Fill out the [Access Request Form](https://forms.duraclim.com/access-request)
+2. Include the specific tool and access level needed
+3. Provide justification for the request
+4. Your manager will approve the request
+5. The IT team will grant access and notify you
+
+For urgent access needs, contact the IT team directly via Slack in the #it-discussions channel.
+
+## Licensing and Costs
+
+Most of our tools are licensed at the organization level, so you don't need to worry about individual licenses. However, be aware of usage-based services:
+
+<table>
+  <thead>
+    <tr>
+      <th>Tool</th>
+      <th>Licensing Model</th>
+      <th>Usage Considerations</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Zapier</td>
+      <td>Per-task pricing</td>
+      <td>Be mindful of task usage in automations</td>
+    </tr>
+    <tr>
+      <td>AWS</td>
+      <td>Pay-per-use</td>
+      <td>Monitor resource usage and shut down unused resources</td>
+    </tr>
+    <tr>
+      <td>Supabase</td>
+      <td>Database size + operations</td>
+      <td>Optimize queries and storage usage</td>
+    </tr>
+    <tr>
+      <td>GitHub</td>
+      <td>Per-user licensing</td>
+      <td>Remove access for departing team members</td>
+    </tr>
+  </tbody>
+</table>
+
+## Tool Policies
+
+<AccordionGroup>
+  <Accordion title="Personal vs. Company Accounts">
+    Always use your Duraclim email account for all work-related tools. Never use personal accounts for company work, as this creates security risks and access management issues.
+  </Accordion>
+  
+  <Accordion title="Data Security">
+    Respect the confidentiality of company data. Do not share access credentials, export sensitive data to unmanaged tools, or bypass security controls.
+  </Accordion>
+  
+  <Accordion title="Tool Suggestions">
+    We welcome suggestions for new tools that could improve our workflow. To propose a new tool:
+    
+    1. Research the tool and identify clear benefits
+    2. Check for any integration capabilities with our existing stack
+    3. Submit a proposal in the #it-discussions channel
+    4. IT will evaluate the suggestion and respond within 5 business days
+  </Accordion>
+  
+  <Accordion title="Departing Employee Process">
+    When leaving the company:
+    
+    1. Transfer ownership of any documents or projects to your manager
+    2. Do not delete work-related data from company tools
+    3. Return all access credentials and licensed software
+    4. IT will systematically revoke access to all systems
+  </Accordion>
+</AccordionGroup>
+
+## Additional Resources
+
+- [VS Code Configuration Guide](/resources/vscode-config)
+- [Docker Development Guide](/resources/docker-dev)
+- [Recommended Extensions](/resources/extensions)
+- [Tool Training Materials](/resources/training-materials)
+- [IT Support Portal](https://support.duraclim.com)
